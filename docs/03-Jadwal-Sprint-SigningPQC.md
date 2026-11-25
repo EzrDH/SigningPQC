@@ -28,9 +28,9 @@ Sisa waktu on lokus hanya sekitar 3,5 minggu. Karena itu fitur yang bukan inti a
 |---|---|---|---|---|
 | On lokus | Sprint 0 | Rabu 25 sampai Jumat 27 Nov | Persiapan, kerangka proyek, bukti ML-DSA di PDF | PDF ML-DSA pertama |
 | On lokus | Sprint 1 | 30 Nov sampai 4 Des | CA dan TSA uji, tanda tangan hybrid B-T di backend | PDF hybrid dari CLI dan REST |
-| On lokus | Sprint 2 | 7 sampai 11 Des | Verifikator dan halaman Vue | Alur TTE jalan dari Vue |
-| On lokus | Sprint 3 | 14 sampai 18 Des | B-LT, B-LTA, stabilisasi, uji alur | **Demo prototipe 18 Des** |
-| Off lokus | Sprint 4 | 21 Des sampai 8 Jan (ada libur) | Pembaruan TSA, simulasi kedaluwarsa, Electron, panduan | Demo pembaruan TSA |
+| On lokus | Sprint 2 | 7 sampai 11 Des | Lapisan jangka panjang: DSS, document timestamp, pembaruan TSA sampai TSA ML-DSA, validator berlapis (selesai lebih awal, 25 Nov, T-012) | Dokumen sah pada simulasi 2040 |
+| On lokus | Sprint 3 | 14 sampai 18 Des | Halaman Vue: tanda tangan, verifikasi, visualisasi lapisan, tombol Perbarui; stabilisasi | **Demo prototipe 18 Des** |
+| Off lokus | Sprint 4 | 21 Des sampai 8 Jan (ada libur) | Electron, panduan, perbaikan dari umpan balik demo | Aplikasi desktop |
 | Off lokus | Sprint 5 | 11 sampai 22 Jan | Pengujian, pengukuran, usulan migrasi | Laporan pengujian |
 | Off lokus | Sprint 6 | 25 Jan sampai 5 Feb | Serah terima, laporan, presentasi | Laporan proyek akhir 29 Jan |
 
@@ -55,20 +55,27 @@ Demo Jumat 27 Nov: PDF bertanda tangan ML-DSA pertama.
 
 Demo Jumat 4 Des: PDF hybrid dibuka di Adobe Reader, tanda tangan RSA sah.
 
+### Perubahan urutan (25 Nov 2026)
+
+Pembimbing menjelaskan struktur PDF berlapis di papan tulis: dokumen seperti KK atau ijazah harus bisa dibuktikan
+sah seumur hidup, sedangkan sistem yang dipakai saat ini berhenti di lapisan 3 (OCSP/CRL). Karena itu lapisan
+jangka panjang (DSS, document timestamp, pembaruan TSA sampai TSA ML-DSA) dikerjakan lebih dulu, lalu frontend Vue.
+Lapisan selesai 25 Nov 2026 (T-012). Butir verifikator Sprint 2 dan butir LTV Sprint 3/4 di bawah sudah tercakup.
+
 ### Sprint 2: Verifikasi dan antarmuka Vue (7 sampai 11 Des)
 
-- [ ] Verifikator: daftar tanda tangan, ByteRange, CMS, rantai sertifikat, timestamp, status gabungan (KF-19 s.d. KF-21, KF-23)
-- [ ] REST verifikasi (KF-38)
+- [x] Verifikator: daftar tanda tangan, ByteRange, CMS, rantai sertifikat, timestamp, status gabungan (KF-19 s.d. KF-21, KF-23) (selesai 25 Nov, T-012)
+- [x] REST verifikasi (KF-38) (selesai 25 Nov, T-012)
 - [ ] Halaman Vue: unggah PDF, penampil pdf.js, wizard tanda tangan dengan posisi kotak RSA, hasil verifikasi (KF-11, KF-31 s.d. KF-33)
-- [ ] Pesan galat yang mudah dipahami (KF-24)
+- [x] Pesan galat yang mudah dipahami (KF-24) (selesai 25 Nov, T-012)
 - [ ] Uji TC-01 s.d. TC-04 dan TC-10
 
 Demo Jumat 11 Des: seluruh alur TTE dijalankan dari Vue.
 
 ### Sprint 3: Validasi jangka panjang dan stabilisasi (14 sampai 18 Des)
 
-- [ ] Kamus DSS dan VRI (KF-16) serta document timestamp (KF-17)
-- [ ] Verifikasi document timestamp (KF-22)
+- [x] Kamus DSS dan VRI (KF-16) serta document timestamp (KF-17) (selesai 25 Nov, T-012)
+- [x] Verifikasi document timestamp (KF-22) (selesai 25 Nov, T-012)
 - [ ] Halaman CA, sertifikat, TSA uji, dan log aktivitas (KF-34, KF-35)
 - [ ] Uji TC-05 dan uji ulang seluruh alur, perbaikan bug
 - [ ] README cara menjalankan dan panduan singkat
@@ -81,9 +88,9 @@ Bila waktu Sprint 3 tidak cukup, DSS dan document timestamp boleh bergeser ke Sp
 
 ### Sprint 4: Pembaruan TSA dan aplikasi desktop (21 Des sampai 8 Jan)
 
-- [ ] TSA generasi 1 bermasa berlaku pendek dan TSA generasi 2 (KF-09, KF-10)
-- [ ] Batas perlindungan, peringatan, dan tombol Perbarui timestamp (KF-26 s.d. KF-29)
-- [ ] Uji TC-06 dan TC-07
+- [x] TSA generasi 1 bermasa berlaku pendek dan TSA generasi 2 (KF-09, KF-10) (selesai 25 Nov, T-012)
+- [ ] Batas perlindungan dan peringatan sudah di backend (T-012); tombol Perbarui timestamp di Vue (KF-26 s.d. KF-29)
+- [x] Uji TC-06 dan TC-07 (selesai 25 Nov, T-012)
 - [ ] Pembungkus Electron yang menjalankan backend Java beserta JRE hasil jlink (KF-39)
 - [ ] Panduan penggunaan
 
