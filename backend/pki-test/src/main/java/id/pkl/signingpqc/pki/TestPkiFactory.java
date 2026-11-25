@@ -10,6 +10,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -66,26 +67,45 @@ public final class TestPkiFactory {
 
     private final SecureRandom random = new SecureRandom();
     private final String crlBaseUrl;
+    private final Clock clock;
 
     public TestPkiFactory() {
         this(DEFAULT_CRL_BASE_URL);
     }
 
     public TestPkiFactory(String crlBaseUrl) {
+        this(crlBaseUrl, Clock.systemUTC());
+    }
+
+    /**
+     * @param clock jam untuk notBefore sertifikat dan thisUpdate CRL; bisa digeser untuk simulasi waktu
+     */
+    public TestPkiFactory(String crlBaseUrl, Clock clock) {
         CryptoProviders.ensureRegistered();
         this.crlBaseUrl = crlBaseUrl;
+        this.clock = clock;
+    }
+
+    public Clock clock() {
+        return clock;
     }
 
     /** Membuat Root CA dan CA antara untuk satu keluarga algoritma. */
     public CaHierarchy createHierarchy(PkiFamily family, String organization) throws GeneralSecurityException {
-        Instant now = Instant.now();
+        return createHierarchy(family, organization, ROOT_VALIDITY, INTERMEDIATE_VALIDITY);
+    }
+
+    /** Seperti {@link #createHierarchy(PkiFamily, String)}, dengan masa berlaku root dan CA antara pilihan. */
+    public CaHierarchy createHierarchy(PkiFamily family, String organization, Duration rootValidity,
+            Duration intermediateValidity) throws GeneralSecurityException {
+        Instant now = clock.instant();
         String rootId = family.slug() + "-root";
         String intermediateId = family.slug() + "-intermediate";
 
         KeyPair rootKeys = generateKeyPair(family.rootAlgorithm());
         X500Name rootName = caName("Root CA Uji " + family.label(), organization);
         X509Certificate rootCert = build(rootName, rootKeys.getPublic(), rootName, rootKeys.getPrivate(), null,
-                family.rootAlgorithm(), now, ROOT_VALIDITY, builder -> {
+                family.rootAlgorithm(), now, rootValidity, builder -> {
                     builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(1));
                     builder.addExtension(Extension.keyUsage, true,
                             new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign));
@@ -96,7 +116,7 @@ public final class TestPkiFactory {
         KeyPair intermediateKeys = generateKeyPair(family.intermediateAlgorithm());
         X500Name intermediateName = caName("CA Antara Uji " + family.label(), organization);
         X509Certificate intermediateCert = build(intermediateName, intermediateKeys.getPublic(), rootName,
-                rootKeys.getPrivate(), rootCert, family.rootAlgorithm(), now, INTERMEDIATE_VALIDITY, builder -> {
+                rootKeys.getPrivate(), rootCert, family.rootAlgorithm(), now, intermediateValidity, builder -> {
                     builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(0));
                     builder.addExtension(Extension.keyUsage, true,
                             new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign));
@@ -120,7 +140,7 @@ public final class TestPkiFactory {
         SignatureAlgorithm algorithm = issuer.family().endEntityAlgorithm();
         KeyPair keys = generateKeyPair(algorithm);
         X509Certificate cert = build(identity.toX500Name(), keys.getPublic(), subjectOf(issuer), issuer.credential().privateKey(),
-                issuer.certificate(), issuer.credential().algorithm(), Instant.now(), validity, builder -> {
+                issuer.certificate(), issuer.credential().algorithm(), clock.instant(), validity, builder -> {
                     builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
                     builder.addExtension(Extension.keyUsage, true,
                             new KeyUsage(KeyUsage.digitalSignature | KeyUsage.nonRepudiation));
@@ -153,7 +173,7 @@ public final class TestPkiFactory {
         KeyPair keys = generateKeyPair(algorithm);
         X500Name subject = new X500Name("CN=" + name + ", O=" + organizationOf(issuer) + ", C=ID");
         X509Certificate cert = build(subject, keys.getPublic(), subjectOf(issuer), issuer.credential().privateKey(),
-                issuer.certificate(), issuer.credential().algorithm(), Instant.now(), validity, builder -> {
+                issuer.certificate(), issuer.credential().algorithm(), clock.instant(), validity, builder -> {
                     builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
                     builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature));
                     builder.addExtension(Extension.extendedKeyUsage, true,
@@ -166,7 +186,13 @@ public final class TestPkiFactory {
     /** Membuat CRL yang ditandatangani CA, berisi daftar sertifikat yang dicabut. */
     public X509CRL createCrl(CertificateAuthority issuer, Collection<RevokedCertificate> revoked, long crlNumber)
             throws GeneralSecurityException {
-        Instant now = Instant.now();
+        return createCrl(issuer, revoked, crlNumber, clock.instant());
+    }
+
+    /** Membuat CRL dengan thisUpdate tertentu (nextUpdate = thisUpdate + {@link #CRL_VALIDITY}). */
+    public X509CRL createCrl(CertificateAuthority issuer, Collection<RevokedCertificate> revoked, long crlNumber,
+            Instant thisUpdate) throws GeneralSecurityException {
+        Instant now = thisUpdate;
         try {
             X509v2CRLBuilder builder = new X509v2CRLBuilder(
                     new JcaX509CertificateHolder(issuer.certificate()).getSubject(), Date.from(now));
