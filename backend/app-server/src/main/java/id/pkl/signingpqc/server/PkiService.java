@@ -30,6 +30,7 @@ import id.pkl.signingpqc.core.Pkcs12Credentials;
 import id.pkl.signingpqc.core.SigningCredential;
 import id.pkl.signingpqc.pki.CaHierarchy;
 import id.pkl.signingpqc.core.ltv.RevocationSource;
+import id.pkl.signingpqc.core.ltv.ValidationData;
 import id.pkl.signingpqc.pki.CertificateAuthority;
 import id.pkl.signingpqc.pki.LongTermPki;
 import id.pkl.signingpqc.pki.PkiFamily;
@@ -152,6 +153,28 @@ public class PkiService {
             }
         }
         return source;
+    }
+
+    /**
+     * Data validasi lokal PKI uji untuk pemeriksaan: semua sertifikat CA dan satu CRL per CA bertanggal {@code at}
+     * yang memuat pencabutan tercatat sampai {@code at}. Tidak menaikkan nomor CRL yang tersimpan, karena CRL ini
+     * hanya dipakai di memori untuk validasi (dokumen tanpa DSS tetap bisa dicek status pencabutannya).
+     */
+    public synchronized ValidationData localValidationData(Instant at) throws GeneralSecurityException {
+        requireReady();
+        List<X509Certificate> certificates = new ArrayList<>();
+        List<X509CRL> crls = new ArrayList<>();
+        for (Map.Entry<String, CertificateAuthority> entry : cas.entrySet()) {
+            String caId = entry.getKey();
+            List<TestPkiFactory.RevokedCertificate> revoked = state.revocations().stream()
+                    .filter(r -> r.caId().equals(caId) && !r.time().isAfter(at))
+                    .map(r -> new TestPkiFactory.RevokedCertificate(new BigInteger(r.serialHex(), 16), r.time(),
+                            r.reason()))
+                    .toList();
+            certificates.add(entry.getValue().certificate());
+            crls.add(factory.createCrl(entry.getValue(), revoked, state.crlNumbers().getOrDefault(caId, 0L) + 1, at));
+        }
+        return new ValidationData(certificates, crls);
     }
 
     public synchronized SignerPair signer(String id) {

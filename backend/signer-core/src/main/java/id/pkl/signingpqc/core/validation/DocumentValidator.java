@@ -8,7 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +16,15 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.cos.COSArray;
+import org.apache.pdfbox.cos.COSBase;
+import org.apache.pdfbox.cos.COSDictionary;
+import org.apache.pdfbox.cos.COSDocument;
+import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.cos.COSObject;
+import org.apache.pdfbox.cos.COSObjectKey;
+import org.apache.pdfbox.cos.COSStream;
+import org.apache.pdfbox.cos.COSString;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
 import org.bouncycastle.cms.CMSProcessableByteArray;
@@ -59,8 +68,16 @@ public final class DocumentValidator {
     }
 
     /** Satu revisi PDF. {@code signature} null untuk revisi tanpa tanda tangan (DSS atau perubahan lain). */
-    private record Revision(int end, PDSignature signature, SignatureReport report, boolean dss) {
+    private record Revision(int end, PDSignature signature, SignatureReport report, boolean dss, boolean foreign) {
     }
+
+    /** Objek yang ditulis ulang oleh satu revisi: jumlahnya, yang bukan DSS/timestamp, dan apakah ada /DSS. */
+    private record Diff(int changed, List<String> foreign, boolean hasDss) {
+    }
+
+    /** Kunci yang boleh berubah pada objek lama: penambahan DSS, field tanda tangan, dan widget-nya. */
+    private static final Set<COSName> LTV_KEYS = Set.of(COSName.getPDFName("DSS"), COSName.ACRO_FORM, COSName.ANNOTS,
+            COSName.FIELDS, COSName.SIG_FLAGS);
 
     /** Hasil sementara pemeriksaan satu lapisan bertanda tangan. */
     private static final class Eval {
@@ -84,13 +101,21 @@ public final class DocumentValidator {
     }
 
     public ValidationReport validate(byte[] pdf, Instant validationTime) throws IOException {
+        return validate(pdf, validationTime, ValidationData.EMPTY);
+    }
+
+    /**
+     * @param local data validasi lokal tambahan (misalnya CRL terkini dari CA uji di mesin ini), dipakai bersama DSS.
+     *              Bukan data dari internet.
+     */
+    public ValidationReport validate(byte[] pdf, Instant validationTime, ValidationData local) throws IOException {
         List<PDSignature> signatures;
         try (PDDocument document = Loader.loadPDF(pdf)) {
             signatures = new ArrayList<>(document.getSignatureDictionaries());
         }
         List<SignatureReport> reports = verifier.verify(pdf);
         List<Revision> revisions = revisions(pdf, signatures, reports);
-        ValidationData dss = DssReader.readAll(pdf);
+        ValidationData dss = DssReader.readAll(pdf).merge(local);
 
         List<Revision> signed = revisions.stream().filter(r -> r.signature() != null).toList();
         int lastSignedEnd = signed.isEmpty() ? -1 : signed.get(signed.size() - 1).end();
@@ -106,6 +131,9 @@ public final class DocumentValidator {
         }
 
         Set<ReasonCode> warnings = new LinkedHashSet<>();
+        if (trailingChange(pdf, signatures)) {
+            warnings.add(ReasonCode.PERUBAHAN_SETELAH_LAPISAN_TERAKHIR);
+        }
         List<LayerReport> layers = new ArrayList<>();
         Instant protectionUntil = null;
         String protectionReason = null;
@@ -113,13 +141,17 @@ public final class DocumentValidator {
         for (Revision revision : revisions) {
             int number = revisions.indexOf(revision) + 2;
             if (revision.signature() == null) {
-                if (revision.dss()) {
+                if (revision.foreign()) {
+                    warnings.add(revision.end() > lastSignedEnd ? ReasonCode.PERUBAHAN_SETELAH_LAPISAN_TERAKHIR
+                            : ReasonCode.PERUBAHAN_ISI_TIDAK_DITANDATANGANI);
+                } else if (revision.dss()) {
                     layers.add(new LayerReport(number, LayerKind.DATA_VALIDASI, "LT", "-", "-", null, null,
                             ReasonCode.OK, OverallStatus.SAH, "Rantai sertifikat dan CRL disimpan di DSS", null));
-                } else if (revision.end() > lastSignedEnd) {
-                    warnings.add(ReasonCode.PERUBAHAN_SETELAH_LAPISAN_TERAKHIR);
                 }
                 continue;
+            }
+            if (revision.foreign()) {
+                warnings.add(ReasonCode.PERUBAHAN_ISI_TIDAK_DITANDATANGANI);
             }
             Instant provenAt = validationTime;
             boolean latest = true;
@@ -168,7 +200,8 @@ public final class DocumentValidator {
         if (!hybridComplete) {
             warnings.add(ReasonCode.TANDA_TANGAN_HYBRID_TIDAK_LENGKAP);
         }
-        if (status == OverallStatus.SAH && warnings.contains(ReasonCode.PERUBAHAN_SETELAH_LAPISAN_TERAKHIR)) {
+        if (status == OverallStatus.SAH && (warnings.contains(ReasonCode.PERUBAHAN_SETELAH_LAPISAN_TERAKHIR)
+                || warnings.contains(ReasonCode.PERUBAHAN_ISI_TIDAK_DITANDATANGANI))) {
             status = OverallStatus.TIDAK_DAPAT_DIBUKTIKAN;
         }
         boolean renewal = protectionUntil != null
@@ -298,6 +331,11 @@ public final class DocumentValidator {
             return eval;
         }
         String subject = tsa.getSubjectX500Principal().getName();
+        if (chain.revokedAt() != null && !chain.revokedAt().isAfter(provenAt)) {
+            // Kunci TSA yang dicabut sebelum token dilindungi lapisan berikutnya bisa dipakai membuat token mundur.
+            return eval.fail(ReasonCode.SERTIFIKAT_DICABUT, OverallStatus.TIDAK_SAH, "Rantai TSA " + subject
+                    + " dicabut pada " + chain.revokedAt() + ", sebelum dilindungi lapisan berikutnya (" + provenAt + ")");
+        }
         Optional<Instant> unsafe = policy.unsafeFromName(algorithm);
         protection(eval, chain.chainNotAfter(), unsafe, algorithm, subject);
         if (!provenAt.isBefore(chain.chainNotAfter())) {
@@ -396,48 +434,240 @@ public final class DocumentValidator {
     }
 
     /**
-     * Mengurutkan revisi setelah tanda tangan pertama. Revisi tanpa tanda tangan dikenali dari penanda %%EOF;
-     * revisi itu dianggap DSS bila jumlah sertifikat dan CRL di DSS bertambah.
+     * Mengurutkan revisi setelah tanda tangan pertama. Revisi tanpa tanda tangan dikenali dari penanda %%EOF.
+     * Untuk revisi tanpa tanda tangan dan revisi document timestamp, objek yang ditulis ulang dibandingkan dengan
+     * revisi sebelumnya: yang boleh hanya DSS dan field/widget tanda tangan. Selain itu dicatat sebagai perubahan isi.
      */
-    private static List<Revision> revisions(byte[] pdf, List<PDSignature> signatures, List<SignatureReport> reports)
-            throws IOException {
-        List<Revision> result = new ArrayList<>();
+    private static List<Revision> revisions(byte[] pdf, List<PDSignature> signatures, List<SignatureReport> reports) {
+        java.util.Map<Integer, Integer> byEnd = new java.util.HashMap<>();
         for (int i = 0; i < signatures.size(); i++) {
-            PDSignature signature = signatures.get(i);
-            SignatureReport report = i < reports.size() ? reports.get(i) : null;
-            result.add(new Revision(end(signature, pdf), signature, report, false));
+            byEnd.put(end(signatures.get(i), pdf), i);
         }
-        result.sort(Comparator.comparingInt(Revision::end));
-        if (result.isEmpty()) {
+        List<Revision> result = new ArrayList<>();
+        if (byEnd.isEmpty()) {
             return result;
         }
-        int firstSigned = result.get(0).end();
-        TreeSet<Integer> signedEnds = new TreeSet<>();
-        result.forEach(r -> signedEnds.add(r.end()));
-
-        int previousCount = 0;
-        List<Revision> unsigned = new ArrayList<>();
+        TreeSet<Integer> signedEnds = new TreeSet<>(byEnd.keySet());
+        int firstSigned = signedEnds.first();
+        TreeSet<Integer> ends = new TreeSet<>(signedEnds);
         for (int end : eofEnds(pdf)) {
             Integer near = signedEnds.ceiling(end - 2);
-            if (end <= firstSigned || (near != null && near <= end + 2)) {
-                continue;
+            if (end > firstSigned && (near == null || near > end + 2)) {
+                ends.add(end);
             }
-            int count = dssCount(Arrays.copyOf(pdf, end));
-            unsigned.add(new Revision(end, null, null, count > previousCount));
-            previousCount = Math.max(previousCount, count);
         }
-        result.addAll(unsigned);
-        result.sort(Comparator.comparingInt(Revision::end));
+        Integer previous = null;
+        for (int end : ends) {
+            Integer index = byEnd.get(end);
+            if (index != null) {
+                PDSignature signature = signatures.get(index);
+                SignatureReport report = index < reports.size() ? reports.get(index) : null;
+                boolean foreign = previous != null && isDocTimestamp(signature)
+                        && !changes(pdf, previous, end).foreign().isEmpty();
+                result.add(new Revision(end, signature, report, false, foreign));
+            } else {
+                Diff diff = changes(pdf, previous, end);
+                boolean foreign = !diff.foreign().isEmpty();
+                result.add(new Revision(end, null, null, !foreign && diff.changed() > 0 && diff.hasDss(), foreign));
+            }
+            previous = end;
+        }
         return result;
     }
 
-    private static int dssCount(byte[] prefix) {
-        try {
-            ValidationData data = DssReader.readAll(prefix);
-            return data.certificates().size() + data.crls().size();
-        } catch (IOException | RuntimeException e) {
-            return -1;
+    /** Ada byte selain spasi setelah revisi terakhir yang dikenal (pembaruan tanpa %%EOF). */
+    private static boolean trailingChange(byte[] pdf, List<PDSignature> signatures) {
+        int last = 0;
+        for (int end : eofEnds(pdf)) {
+            last = Math.max(last, end);
         }
+        for (PDSignature signature : signatures) {
+            last = Math.max(last, end(signature, pdf));
+        }
+        for (int i = last; i < pdf.length; i++) {
+            byte b = pdf[i];
+            if (b != ' ' && b != '\t' && b != '\r' && b != '\n' && b != '\f' && b != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Membandingkan objek yang ditulis revisi [{@code from}, {@code to}) dengan keadaan sebelum revisi itu. */
+    private static Diff changes(byte[] pdf, int from, int to) {
+        try (PDDocument before = Loader.loadPDF(Arrays.copyOf(pdf, from));
+                PDDocument after = Loader.loadPDF(Arrays.copyOf(pdf, to))) {
+            COSDocument a = before.getDocument();
+            COSDocument b = after.getDocument();
+            java.util.Map<COSObjectKey, Long> xa = a.getXrefTable();
+            java.util.Map<COSObjectKey, Long> xb = b.getXrefTable();
+            COSDictionary catalog = after.getDocumentCatalog().getCOSObject();
+            COSBase dssItem = catalog.getItem(COSName.getPDFName("DSS"));
+            Set<COSObjectKey> fromDss = new HashSet<>();
+            reach(dssItem, fromDss, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()), 0);
+            Set<COSObjectKey> fromSignatures = new HashSet<>(fromDss);
+            reachSignatureFields(catalog, fromSignatures);
+
+            int changed = 0;
+            List<String> foreign = new ArrayList<>();
+            for (java.util.Map.Entry<COSObjectKey, Long> entry : xb.entrySet()) {
+                COSObjectKey key = entry.getKey();
+                long offset = entry.getValue();
+                boolean written;
+                if (offset >= 0) {
+                    written = offset >= from;
+                } else {
+                    Long container = xb.get(new COSObjectKey(-offset, 0));
+                    written = container != null && container >= from;
+                }
+                if (!written) {
+                    continue;
+                }
+                COSObject holder = b.getObjectFromPool(key);
+                COSBase now = holder == null ? null : holder.getObject();
+                if (now instanceof COSDictionary dict && (COSName.XREF.equals(dict.getCOSName(COSName.TYPE))
+                        || COSName.OBJ_STM.equals(dict.getCOSName(COSName.TYPE)))) {
+                    continue;
+                }
+                changed++;
+                if (!xa.containsKey(key)) {
+                    if (!fromSignatures.contains(key)) {
+                        foreign.add("objek baru " + key + " " + describe(now));
+                    }
+                    continue;
+                }
+                if (fromDss.contains(key)) {
+                    continue;
+                }
+                COSObject oldHolder = a.getObjectFromPool(key);
+                COSBase old = oldHolder == null ? null : oldHolder.getObject();
+                if (!sameExceptLtv(old, now, fromSignatures)) {
+                    foreign.add("objek " + key + " " + describe(now) + " diubah");
+                }
+            }
+            return new Diff(changed, foreign, dssItem != null);
+        } catch (IOException | RuntimeException e) {
+            return new Diff(0, List.of("revisi tidak dapat dibaca: " + e.getMessage()), false);
+        }
+    }
+
+    /** Objek lama yang ditulis ulang hanya boleh berbeda pada kunci LTV, atau berupa array yang hanya ditambah. */
+    private static boolean sameExceptLtv(COSBase old, COSBase now, Set<COSObjectKey> allowedNew) {
+        if (old instanceof COSStream || now instanceof COSStream) {
+            return false;
+        }
+        if (old instanceof COSDictionary oldDict && now instanceof COSDictionary newDict) {
+            return canon(oldDict, LTV_KEYS, 0).equals(canon(newDict, LTV_KEYS, 0));
+        }
+        if (old instanceof COSArray oldArray && now instanceof COSArray newArray) {
+            List<String> remaining = new ArrayList<>();
+            for (int i = 0; i < oldArray.size(); i++) {
+                remaining.add(canon(oldArray.get(i), Set.of(), 0));
+            }
+            for (int i = 0; i < newArray.size(); i++) {
+                COSBase element = newArray.get(i);
+                if (remaining.remove(canon(element, Set.of(), 0))) {
+                    continue;
+                }
+                if (!(element instanceof COSObject ref) || ref.getKey() == null || !allowedNew.contains(ref.getKey())) {
+                    return false;
+                }
+            }
+            return remaining.isEmpty();
+        }
+        return false;
+    }
+
+    /** Bentuk teks yang stabil untuk perbandingan; referensi dibandingkan dari nomor objeknya. */
+    private static String canon(COSBase base, Set<COSName> ignore, int depth) {
+        if (base == null) {
+            return "null";
+        }
+        if (base instanceof COSObject ref) {
+            return ref.getKey() == null ? "R?" + ref.getObjectNumber() : "R" + ref.getKey();
+        }
+        if (depth > 8) {
+            return "...";
+        }
+        if (base instanceof COSDictionary dict) {
+            java.util.TreeMap<String, String> entries = new java.util.TreeMap<>();
+            for (COSName name : dict.keySet()) {
+                if (!ignore.contains(name)) {
+                    entries.put(name.getName(), canon(dict.getItem(name), Set.of(), depth + 1));
+                }
+            }
+            return entries.toString();
+        }
+        if (base instanceof COSArray array) {
+            List<String> items = new ArrayList<>();
+            for (int i = 0; i < array.size(); i++) {
+                items.add(canon(array.get(i), Set.of(), depth + 1));
+            }
+            return items.toString();
+        }
+        if (base instanceof COSString string) {
+            return "s:" + java.util.HexFormat.of().formatHex(string.getBytes());
+        }
+        return base.toString();
+    }
+
+    /** Kunci objek yang terjangkau dari field tanda tangan (termasuk /V, widget, dan tampilannya). */
+    private static void reachSignatureFields(COSDictionary catalog, Set<COSObjectKey> keys) {
+        COSBase form = catalog.getDictionaryObject(COSName.ACRO_FORM);
+        if (!(form instanceof COSDictionary acroForm)) {
+            return;
+        }
+        COSBase fields = acroForm.getDictionaryObject(COSName.FIELDS);
+        if (!(fields instanceof COSArray array)) {
+            return;
+        }
+        Set<COSBase> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (int i = 0; i < array.size(); i++) {
+            COSBase item = array.get(i);
+            COSBase field = item instanceof COSObject ref ? ref.getObject() : item;
+            if (field instanceof COSDictionary dict && COSName.SIG.equals(dict.getCOSName(COSName.FT))) {
+                reach(item, keys, seen, 0);
+            }
+        }
+    }
+
+    /** Menelusuri objek terjangkau tanpa naik ke halaman (/P) atau induk (/Parent). */
+    private static void reach(COSBase base, Set<COSObjectKey> keys, Set<COSBase> seen, int depth) {
+        if (base == null || depth > 64) {
+            return;
+        }
+        if (base instanceof COSObject ref) {
+            if (ref.getKey() != null && !keys.add(ref.getKey())) {
+                return;
+            }
+            base = ref.getObject();
+            if (base == null) {
+                return;
+            }
+        }
+        if (!seen.add(base)) {
+            return;
+        }
+        if (base instanceof COSDictionary dict) {
+            for (COSName name : dict.keySet()) {
+                if (!COSName.P.equals(name) && !COSName.PARENT.equals(name)) {
+                    reach(dict.getItem(name), keys, seen, depth + 1);
+                }
+            }
+        } else if (base instanceof COSArray array) {
+            for (int i = 0; i < array.size(); i++) {
+                reach(array.get(i), keys, seen, depth + 1);
+            }
+        }
+    }
+
+    private static String describe(COSBase base) {
+        if (base instanceof COSDictionary dict) {
+            COSName type = dict.getCOSName(COSName.TYPE);
+            COSName subtype = dict.getCOSName(COSName.SUBTYPE);
+            return (type == null ? "" : type.getName()) + (subtype == null ? "" : "/" + subtype.getName());
+        }
+        return base == null ? "null" : base.getClass().getSimpleName();
     }
 
     private static List<Integer> eofEnds(byte[] pdf) {

@@ -179,6 +179,9 @@ class RestApiTest {
         before.verify(ca.getPublicKey(), CryptoProviders.BC);
         assertTrue(before.getRevokedCertificates() == null || before.getRevokedCertificates().isEmpty());
 
+        // Waktu CRL dan genTime TSA berpresisi detik; pencabutan pada detik yang sama dengan timestamp dianggap
+        // dicabut (konservatif). Beri jeda agar Order 12 menguji kasus "dicabut setelah ditandatangani".
+        Thread.sleep(1100);
         HttpResponse<String> revoked = postJson("/api/pki/signers/" + signerId + "/revoke", "");
         assertEquals(200, revoked.statusCode(), revoked.body());
         assertTrue(json.readTree(revoked.body()).get("revoked").asBoolean());
@@ -288,6 +291,23 @@ class RestApiTest {
             assertEquals(400, response.statusCode(), path);
             assertTrue(new String(response.body(), StandardCharsets.UTF_8).contains("terenkripsi"), path);
         }
+    }
+
+    @Test
+    @Order(12)
+    void verifikasiMemakaiCrlLokalPkiUji() throws Exception {
+        // Penanda tangan Order 3 dicabut di Order 6, setelah dokumen ditandatangani (B-T, tanpa DSS).
+        HttpResponse<byte[]> response = postMultipart("/api/verify", signedPdf, "surat-ttd.pdf", List.of());
+        assertEquals(200, response.statusCode());
+        JsonNode body = json.readTree(response.body());
+        JsonNode validation = body.get("validation");
+        assertEquals("SAH", validation.get("status").asString(), validation.toString());
+        boolean revokedLater = false;
+        for (JsonNode warning : validation.get("warnings")) {
+            revokedLater |= "DICABUT_SETELAH_DITANDATANGANI".equals(warning.asString());
+        }
+        assertTrue(revokedLater, "CRL lokal harus dipakai: " + validation);
+        assertFalse(body.get("summary").asString().contains("semua lapisan terbukti"), body.get("summary").asString());
     }
 
     // ---------------------------------------------------------------------------------------------

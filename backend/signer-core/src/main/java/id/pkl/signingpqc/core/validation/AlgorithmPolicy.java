@@ -3,6 +3,7 @@ package id.pkl.signingpqc.core.validation;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import id.pkl.signingpqc.core.SignatureAlgorithm;
 
@@ -32,22 +33,35 @@ public record AlgorithmPolicy(Map<String, Instant> unsafeFrom) {
         return Optional.ofNullable(unsafeFrom.get(family(algorithm)));
     }
 
-    /** Keluarga dari nama algoritma tampilan, misalnya "RSA (SHA-256)" menjadi "RSA", "ML-DSA-65" menjadi "ML-DSA". */
+    /** Keluarga yang dikenal kebijakan ini. ML-DSA ada di sini walaupun belum punya batas aman. */
+    private static final Set<String> KNOWN_FAMILIES = Set.of("RSA", "ML-DSA");
+
+    /**
+     * Keluarga dari nama algoritma tampilan atau OID, misalnya "RSA (SHA-256)" atau 1.2.840.113549.1.1.12 menjadi
+     * "RSA", "ML-DSA-65" atau 2.16.840.1.101.3.4.3.18 menjadi "ML-DSA".
+     */
     public static String familyOf(String algorithmName) {
         if (algorithmName == null) {
             return "-";
         }
-        if (algorithmName.startsWith("ML-DSA")) {
+        if (algorithmName.startsWith("ML-DSA") || algorithmName.matches("2\\.16\\.840\\.1\\.101\\.3\\.4\\.3\\.1[789]")) {
             return "ML-DSA";
         }
-        if (algorithmName.startsWith("RSA")) {
+        if (algorithmName.startsWith("RSA") || algorithmName.startsWith("1.2.840.113549.1.1.")) {
             return "RSA";
         }
         return algorithmName;
     }
 
-    /** Batas aman untuk nama algoritma tampilan (lihat {@link #familyOf(String)}). */
+    /**
+     * Batas aman untuk nama algoritma tampilan (lihat {@link #familyOf(String)}). Algoritma yang tidak dikenal
+     * dianggap tidak aman sejak awal (fail-closed), bukan aman selamanya.
+     */
     public Optional<Instant> unsafeFromName(String algorithmName) {
-        return Optional.ofNullable(unsafeFrom.get(familyOf(algorithmName)));
+        String family = familyOf(algorithmName);
+        if (!KNOWN_FAMILIES.contains(family)) {
+            return Optional.of(Instant.EPOCH);
+        }
+        return Optional.ofNullable(unsafeFrom.get(family));
     }
 }

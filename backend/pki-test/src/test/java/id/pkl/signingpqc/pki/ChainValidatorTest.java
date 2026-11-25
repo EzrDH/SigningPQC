@@ -74,6 +74,7 @@ class ChainValidatorTest {
         ChainResult result = validator().validate(signer.certificate(), data(signer, crls), T0.plus(Duration.ofHours(12)));
         assertEquals(ReasonCode.DICABUT_SETELAH_DITANDATANGANI, result.code(), result.detail());
         assertTrue(result.valid());
+        assertEquals(T0.plus(Duration.ofDays(1)), result.revokedAt(), "waktu pencabutan tetap dicatat");
     }
 
     @Test

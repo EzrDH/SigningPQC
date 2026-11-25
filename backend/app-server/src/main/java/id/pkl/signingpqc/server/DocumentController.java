@@ -5,6 +5,7 @@ import java.security.GeneralSecurityException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -22,9 +23,11 @@ import id.pkl.signingpqc.core.SignatureReport;
 import id.pkl.signingpqc.core.ltv.DssReader;
 import id.pkl.signingpqc.core.ltv.LtvService;
 import id.pkl.signingpqc.core.ltv.TimestampProfile;
+import id.pkl.signingpqc.core.ltv.ValidationData;
 import id.pkl.signingpqc.core.validation.AlgorithmPolicy;
 import id.pkl.signingpqc.core.validation.DocumentValidator;
 import id.pkl.signingpqc.core.validation.OverallStatus;
+import id.pkl.signingpqc.core.validation.ReasonCode;
 import id.pkl.signingpqc.core.validation.ValidationReport;
 
 /** Tanda tangan hybrid dan verifikasi dokumen PDF. */
@@ -118,8 +121,15 @@ public class DocumentController {
         boolean allValid = !reports.isEmpty() && reports.stream().allMatch(SignatureReport::valid);
         ValidationReport validation = null;
         if (pki.ready()) {
+            Instant validationTime = time == null ? Instant.now() : time;
+            ValidationData local;
+            try {
+                local = pki.localValidationData(validationTime);
+            } catch (GeneralSecurityException e) {
+                throw new IOException("Gagal menyiapkan CRL lokal PKI uji: " + e.getMessage(), e);
+            }
             validation = new DocumentValidator(pki.trustAnchors(), AlgorithmPolicy.defaults(), RENEWAL_WARNING)
-                    .validate(pdf, time == null ? Instant.now() : time);
+                    .validate(pdf, validationTime, local);
         }
         boolean hybrid = validation != null ? validation.hybridComplete()
                 : reports.size() >= 2
@@ -143,9 +153,13 @@ public class DocumentController {
 
     private static String summary(ValidationReport report) {
         if (report.status() == OverallStatus.SAH) {
-            return report.renewalRecommended()
-                    ? "Dokumen sah; perlindungan berakhir " + report.protectionUntil() + ", segera perbarui timestamp"
-                    : "Dokumen sah; semua lapisan terbukti";
+            String notes = report.warnings().stream().map(ReasonCode::message).distinct()
+                    .collect(Collectors.joining("; "));
+            String base = notes.isEmpty() ? "Dokumen sah" : "Dokumen sah dengan catatan: " + notes;
+            if (report.renewalRecommended()) {
+                return base + "; perlindungan berakhir " + report.protectionUntil() + ", segera perbarui timestamp";
+            }
+            return notes.isEmpty() ? "Dokumen sah; semua lapisan terbukti" : base;
         }
         if (report.status() == OverallStatus.TIDAK_DAPAT_DIBUKTIKAN) {
             return "Keabsahan dokumen tidak dapat dibuktikan pada waktu pemeriksaan";

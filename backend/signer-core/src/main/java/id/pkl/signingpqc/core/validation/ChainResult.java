@@ -9,11 +9,18 @@ import java.util.List;
  *
  * @param path rantai dari sertifikat daun sampai root (root ikut, bila ketemu)
  * @param chainNotAfter masa berlaku terpendek di rantai; null bila rantai tidak tersusun
+ * @param revokedAt     waktu pencabutan paling awal di rantai menurut CRL yang berlaku, juga bila sesudah waktu
+ *                      pemeriksaan; null bila tidak ada yang dicabut
  */
-public record ChainResult(ReasonCode code, List<X509Certificate> path, Instant chainNotAfter, String detail) {
+public record ChainResult(ReasonCode code, List<X509Certificate> path, Instant chainNotAfter, String detail,
+        Instant revokedAt) {
 
     public ChainResult {
         path = path == null ? List.of() : List.copyOf(path);
+    }
+
+    public ChainResult(ReasonCode code, List<X509Certificate> path, Instant chainNotAfter, String detail) {
+        this(code, path, chainNotAfter, detail, null);
     }
 
     /** Sah, termasuk bila sertifikat baru dicabut setelah waktu yang dibuktikan. */

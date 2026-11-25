@@ -20,10 +20,16 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationText;
+import org.apache.pdfbox.pdmodel.interactive.digitalsignature.ExternalSigningSupport;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
+import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
 import org.junit.jupiter.api.Test;
 
+import id.pkl.signingpqc.core.SamplePdf;
+import id.pkl.signingpqc.core.ltv.DssReader;
+import id.pkl.signingpqc.core.ltv.DssWriter;
 import id.pkl.signingpqc.core.ltv.LtvService;
+import id.pkl.signingpqc.core.ltv.ValidationData;
 import id.pkl.signingpqc.core.ltv.TimestampProfile;
 import id.pkl.signingpqc.core.validation.AlgorithmPolicy;
 import id.pkl.signingpqc.core.validation.DocumentValidator;
@@ -205,28 +211,131 @@ class DocumentValidatorTest {
     @Test
     void revisiTambahanSetelahLapisanTerakhir() throws Exception {
         byte[] lta = ltaGen1();
-        byte[] changed;
-        try (PDDocument document = Loader.loadPDF(lta)) {
-            PDPage page = document.getPage(0);
-            PDAnnotationText note = new PDAnnotationText();
-            note.setRectangle(new PDRectangle(50, 50, 20, 20));
-            note.setContents("Catatan yang ditambahkan setelah lapisan terakhir");
-            List<PDAnnotation> annotations = new ArrayList<>(page.getAnnotations());
-            annotations.add(note);
-            page.setAnnotations(annotations);
-            note.getCOSObject().setNeedToBeUpdated(true);
-            page.getCOSObject().setNeedToBeUpdated(true);
-            COSArray annots = page.getCOSObject().getCOSArray(COSName.ANNOTS);
-            annots.setNeedToBeUpdated(true);
-            document.getDocumentCatalog().getCOSObject().setNeedToBeUpdated(true);
-            document.getDocumentCatalog().getPages().getCOSObject().setNeedToBeUpdated(true);
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            document.saveIncremental(out);
-            changed = out.toByteArray();
-        }
+        byte[] changed = withAnnotation(lta);
         assertTrue(changed.length > lta.length);
         ValidationReport report = validator().validate(changed, T0.plus(Duration.ofHours(1)));
         assertTrue(report.warnings().contains(ReasonCode.PERUBAHAN_SETELAH_LAPISAN_TERAKHIR), report.toString());
         assertNotEquals(OverallStatus.SAH, report.status());
+    }
+
+    /** Menambah anotasi teks lewat revisi inkremental baru (perubahan isi yang tidak ditandatangani). */
+    private static byte[] withAnnotation(byte[] pdf) throws Exception {
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            addNote(document);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            document.saveIncremental(out);
+            return out.toByteArray();
+        }
+    }
+
+    private static void addNote(PDDocument document) throws Exception {
+        PDPage page = document.getPage(0);
+        PDAnnotationText note = new PDAnnotationText();
+        note.setRectangle(new PDRectangle(50, 50, 20, 20));
+        note.setContents("Catatan yang tidak ditandatangani");
+        List<PDAnnotation> annotations = new ArrayList<>(page.getAnnotations());
+        annotations.add(note);
+        page.setAnnotations(annotations);
+        note.getCOSObject().setNeedToBeUpdated(true);
+        page.getCOSObject().setNeedToBeUpdated(true);
+        COSArray annots = page.getCOSObject().getCOSArray(COSName.ANNOTS);
+        annots.setNeedToBeUpdated(true);
+        document.getDocumentCatalog().getCOSObject().setNeedToBeUpdated(true);
+        document.getDocumentCatalog().getPages().getCOSObject().setNeedToBeUpdated(true);
+    }
+
+    @Test
+    void perubahanDiAntaraLapisanTerdeteksi() throws Exception {
+        // Anotasi ditambahkan setelah tanda tangan, lalu ditutup DSS dan document timestamp.
+        byte[] changed = withAnnotation(LtvFixtures.hybridBt());
+        byte[] lt = LtvService.addValidationData(changed, source(T0));
+        byte[] lta = LtvService.addDocumentTimestamp(lt, LtvFixtures.tsa(LtvFixtures.pki().tsaRsaGen1(), T0),
+                TimestampProfile.RSA);
+        ValidationReport report = validator().validate(lta, T0.plus(Duration.ofHours(1)));
+        assertTrue(report.warnings().contains(ReasonCode.PERUBAHAN_ISI_TIDAK_DITANDATANGANI), report.toString());
+        assertNotEquals(OverallStatus.SAH, report.status());
+    }
+
+    @Test
+    void dssSebelumTandaTanganTidakMenyamarkanPerubahan() throws Exception {
+        // PDF sudah punya /DSS dari alat lain sebelum ditandatangani (Review Focus 1).
+        ValidationData foreign = new ValidationData(List.of(LtvFixtures.pki().rsa().root().certificate()), List.of());
+        byte[] withDss = DssWriter.append(SamplePdf.create("Ijazah Uji", "PDF dengan DSS lama."),
+                java.util.Map.of("A".repeat(40), foreign));
+        assertFalse(DssReader.readAll(withDss).isEmpty());
+        byte[] changed = withAnnotation(LtvFixtures.hybridBt(withDss));
+        ValidationReport report = validator().validate(changed, T0.plus(Duration.ofHours(1)));
+        assertTrue(report.warnings().contains(ReasonCode.PERUBAHAN_SETELAH_LAPISAN_TERAKHIR), report.toString());
+        assertNotEquals(OverallStatus.SAH, report.status());
+    }
+
+    @Test
+    void perubahanDiDalamRevisiTimestampTerdeteksi() throws Exception {
+        // Anotasi disisipkan pada revisi yang sama dengan document timestamp: TSA tidak menyetujui isi.
+        byte[] lt = LtvService.addValidationData(LtvFixtures.hybridBt(), source(T0));
+        byte[] lta;
+        try (PDDocument document = Loader.loadPDF(lt); SignatureOptions options = new SignatureOptions()) {
+            addNote(document);
+            PDSignature signature = new PDSignature();
+            signature.setType(COSName.DOC_TIME_STAMP);
+            signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);
+            signature.setSubFilter(COSName.getPDFName(DssReader.ETSI_RFC3161));
+            options.setPreferredSignatureSize(TimestampProfile.RSA.reservedBytes());
+            document.addSignature(signature, options);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ExternalSigningSupport external = document.saveIncrementalForExternalSigning(out);
+            byte[] content = external.getContent().readAllBytes();
+            external.setSignature(LtvFixtures.tsa(LtvFixtures.pki().tsaRsaGen1(), T0)
+                    .timestamp(content, "SHA-256").getEncoded());
+            lta = out.toByteArray();
+        }
+        ValidationReport report = validator().validate(lta, T0.plus(Duration.ofHours(1)));
+        assertTrue(report.warnings().contains(ReasonCode.PERUBAHAN_ISI_TIDAK_DITANDATANGANI), report.toString());
+        assertNotEquals(OverallStatus.SAH, report.status());
+    }
+
+    @Test
+    void byteTambahanTanpaEofTerdeteksi() throws Exception {
+        byte[] lta = ltaGen1();
+        byte[] extra = "\n99 0 obj\n<< /Type /Annot /Subtype /Text >>\nendobj\n".getBytes(
+                java.nio.charset.StandardCharsets.US_ASCII);
+        byte[] changed = java.util.Arrays.copyOf(lta, lta.length + extra.length);
+        System.arraycopy(extra, 0, changed, lta.length, extra.length);
+        ValidationReport report = validator().validate(changed, T0.plus(Duration.ofHours(1)));
+        assertTrue(report.warnings().contains(ReasonCode.PERUBAHAN_SETELAH_LAPISAN_TERAKHIR), report.toString());
+        assertNotEquals(OverallStatus.SAH, report.status());
+    }
+
+    @Test
+    void crlLokalMendeteksiPencabutanTanpaDss() throws Exception {
+        LongTermPki pki = LtvFixtures.pki();
+        TestPkiRevocationSource revoking = source(T0.plus(Duration.ofHours(1)));
+        revoking.revoke(pki.signer().rsa().certificate(), T0.minusSeconds(60));
+        ValidationData local = revoking.collect(pki.signer().rsa().certificate(), pki.signer().rsa().chain());
+        ValidationReport report = validator().validate(LtvFixtures.hybridBt(), T0.plus(Duration.ofHours(1)), local);
+        assertEquals(OverallStatus.TIDAK_SAH, report.status(), report.toString());
+        assertTrue(hasCode(report, ReasonCode.SERTIFIKAT_DICABUT), report.toString());
+    }
+
+    @Test
+    void tsaDicabutSebelumPembaruanTidakSah() throws Exception {
+        LongTermPki pki = LtvFixtures.pki();
+        Instant t1 = gen1NotAfter().minus(Duration.ofDays(10));
+        TestPkiRevocationSource renewalSource = source(t1);
+        renewalSource.revoke(pki.tsaRsaGen1().certificate(), T0.plus(Duration.ofDays(1)));
+        byte[] renewed = LtvService.renew(ltaGen1(), renewalSource, LtvFixtures.tsa(pki.tsaRsaGen2(), t1),
+                TimestampProfile.RSA);
+        ValidationReport report = validator().validate(renewed, t1.plus(Duration.ofHours(1)));
+        assertEquals(OverallStatus.TIDAK_SAH, report.status(), report.toString());
+        assertTrue(hasCode(report, ReasonCode.SERTIFIKAT_DICABUT), report.toString());
+    }
+
+    @Test
+    void algoritmaTakDikenalTidakDianggapAman() {
+        AlgorithmPolicy policy = AlgorithmPolicy.defaults();
+        assertEquals("RSA", AlgorithmPolicy.familyOf("1.2.840.113549.1.1.12"), "sha384WithRSA");
+        assertEquals("ML-DSA", AlgorithmPolicy.familyOf("2.16.840.1.101.3.4.3.19"), "ML-DSA-87");
+        assertTrue(policy.unsafeFromName("1.2.840.10045.4.3.2").isPresent(), "ECDSA tidak dikenal kebijakan");
+        assertTrue(policy.unsafeFromName("ML-DSA-65").isEmpty());
     }
 }

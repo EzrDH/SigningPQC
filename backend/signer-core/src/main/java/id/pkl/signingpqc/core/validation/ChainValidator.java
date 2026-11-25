@@ -86,6 +86,7 @@ public final class ChainValidator {
 
         ReasonCode outcome = ReasonCode.OK;
         String detail = "Rantai sah pada " + time;
+        Instant earliestRevocation = null;
         for (int i = 0; i < path.size() - 1; i++) {
             X509Certificate certificate = path.get(i);
             X509Certificate issuer = path.get(i + 1);
@@ -103,13 +104,16 @@ public final class ChainValidator {
                 String subject = certificate.getSubjectX500Principal().getName();
                 if (!revokedAt.isAfter(time)) {
                     return new ChainResult(ReasonCode.SERTIFIKAT_DICABUT, path, notAfter,
-                            subject + " dicabut pada " + revokedAt);
+                            subject + " dicabut pada " + revokedAt, revokedAt);
+                }
+                if (earliestRevocation == null || revokedAt.isBefore(earliestRevocation)) {
+                    earliestRevocation = revokedAt;
                 }
                 outcome = ReasonCode.DICABUT_SETELAH_DITANDATANGANI;
                 detail = subject + " dicabut pada " + revokedAt + ", setelah " + time;
             }
         }
-        return new ChainResult(outcome, path, notAfter, detail);
+        return new ChainResult(outcome, path, notAfter, detail, earliestRevocation);
     }
 
     private X509Certificate findIssuer(X509Certificate certificate, List<X509Certificate> pool) {

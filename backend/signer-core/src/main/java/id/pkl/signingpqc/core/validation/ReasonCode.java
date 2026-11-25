@@ -17,6 +17,8 @@ public enum ReasonCode {
             "Algoritma lapisan ini sudah dianggap tidak aman sebelum ada lapisan pembaruan yang melindunginya"),
     WAKTU_PEMERIKSAAN_TIDAK_SAH("Waktu pemeriksaan lebih awal dari waktu lapisan dibuat"),
     PERUBAHAN_SETELAH_LAPISAN_TERAKHIR("Ada perubahan dokumen setelah lapisan terakhir yang tidak dilindungi"),
+    PERUBAHAN_ISI_TIDAK_DITANDATANGANI(
+            "Ada revisi yang mengubah isi dokumen tanpa tanda tangan penanda tangan (hanya DSS dan timestamp yang wajar)"),
     TANDA_TANGAN_HYBRID_TIDAK_LENGKAP("Tanda tangan hybrid harus berisi RSA dan ML-DSA yang keduanya sah");
 
     private final String message;

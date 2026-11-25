@@ -49,9 +49,13 @@ final class LtvFixtures {
 
     /** PDF hybrid B-T: RSA (TSA RSA G1) lalu ML-DSA (TSA ML-DSA), keduanya dicap pada {@link #T0}. */
     static byte[] hybridBt() throws Exception {
+        return hybridBt(SamplePdf.create("Ijazah Uji", "Dokumen sintetis untuk uji LTV."));
+    }
+
+    /** Seperti {@link #hybridBt()}, tetapi atas PDF yang diberikan. */
+    static byte[] hybridBt(byte[] pdf) throws Exception {
         LongTermPki pki = pki();
         PadesSigner signer = new PadesSigner();
-        byte[] pdf = SamplePdf.create("Ijazah Uji", "Dokumen sintetis untuk uji LTV.");
         byte[] signed = signer.signInvisible(pdf, pki.signer().rsa(),
                 SignatureDetails.of(IDENTITY.commonName(), "RSA"), tsa(pki.tsaRsaGen1(), T0));
         return signer.signInvisible(signed, pki.signer().mlDsa(),
