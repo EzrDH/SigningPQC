@@ -5,9 +5,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.Calendar;
+import java.util.List;
+import java.util.TimeZone;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.ExternalSigningSupport;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
@@ -15,8 +18,8 @@ import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
 /**
  * Menambahkan tanda tangan PAdES (ETSI.CAdES.detached) ke PDF sebagai incremental update.
  *
- * <p>Tanda tangan invisible, dengan atau tanpa signature timestamp (B-B atau B-T). Tampilan visible untuk
- * RSA ditambahkan pada Sprint 1.
+ * <p>Tanda tangan bisa invisible (dipakai untuk ML-DSA) atau visible dengan kotak di halaman (dipakai untuk RSA),
+ * dengan atau tanpa signature timestamp (B-B atau B-T).
  */
 public final class PadesSigner {
 
@@ -39,28 +42,47 @@ public final class PadesSigner {
 
     public byte[] signInvisible(byte[] pdf, SigningCredential credential, SignatureDetails details)
             throws IOException, GeneralSecurityException {
-        return signInvisible(pdf, credential, details, null);
+        return sign(pdf, credential, details, null, null);
     }
 
-    /**
-     * Tanda tangan invisible; bila tsa tidak null, CMS diberi signature timestamp (PAdES B-T).
-     */
+    /** Tanda tangan invisible; bila tsa tidak null, CMS diberi signature timestamp (PAdES B-T). */
     public byte[] signInvisible(byte[] pdf, SigningCredential credential, SignatureDetails details,
             TimestampClient tsa) throws IOException, GeneralSecurityException {
+        return sign(pdf, credential, details, tsa, null);
+    }
+
+    /** Tanda tangan yang tampil sebagai kotak di halaman; bila tsa tidak null, level B-T. */
+    public byte[] signVisible(byte[] pdf, SigningCredential credential, SignatureDetails details,
+            VisibleSignature visible, TimestampClient tsa) throws IOException, GeneralSecurityException {
+        if (visible == null) {
+            throw new IllegalArgumentException("Posisi tanda tangan visible wajib diisi");
+        }
+        return sign(pdf, credential, details, tsa, visible);
+    }
+
+    private byte[] sign(byte[] pdf, SigningCredential credential, SignatureDetails details, TimestampClient tsa,
+            VisibleSignature visible) throws IOException, GeneralSecurityException {
         int space = signatureSpace(credential.algorithm(), tsa != null);
         try (PDDocument document = Loader.loadPDF(pdf);
                 SignatureOptions options = new SignatureOptions();
                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
 
+            Calendar signDate = Calendar.getInstance(TimeZone.getTimeZone(SignatureAppearance.WIB));
             PDSignature signature = new PDSignature();
             signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);
             signature.setSubFilter(PDSignature.SUBFILTER_ETSI_CADES_DETACHED);
             signature.setName(details.signerName());
             signature.setReason(details.reason());
             signature.setLocation(details.location());
-            signature.setSignDate(Calendar.getInstance());
+            signature.setSignDate(signDate);
 
             options.setPreferredSignatureSize(space);
+            if (visible != null) {
+                PDRectangle rect = SignatureAppearance.rectangle(document, visible);
+                List<String> lines = SignatureAppearance.lines(details, visible, signDate, credential.algorithm());
+                options.setVisualSignature(SignatureAppearance.template(document, visible, rect, lines));
+                options.setPage(visible.pageIndex());
+            }
             document.addSignature(signature, options);
 
             ExternalSigningSupport externalSigning = document.saveIncrementalForExternalSigning(output);

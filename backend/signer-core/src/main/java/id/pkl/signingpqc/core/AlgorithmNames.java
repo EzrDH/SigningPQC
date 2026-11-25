@@ -29,4 +29,9 @@ final class AlgorithmNames {
     static String digest(String oid) {
         return DIGEST.getOrDefault(oid, oid);
     }
+
+    /** Nama pendek untuk tampilan, misalnya "RSA-3072" atau "ML-DSA-65". */
+    static String shortName(SignatureAlgorithm algorithm) {
+        return algorithm.isPostQuantum() ? algorithm.keyAlgorithm() : "RSA-" + algorithm.keySize();
+    }
 }

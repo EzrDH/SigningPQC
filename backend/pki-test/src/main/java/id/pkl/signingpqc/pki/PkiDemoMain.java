@@ -146,6 +146,23 @@ public final class PkiDemoMain {
                     ts == null ? "-" : ts.time(), ts == null ? "-" : ts.tsaSubject(),
                     ts == null ? "-" : ts.signatureAlgorithm());
         }
+        // Tanda tangan RSA visible (kotak di kanan bawah halaman 1) + ML-DSA invisible, keduanya B-T.
+        var a4 = org.apache.pdfbox.pdmodel.common.PDRectangle.A4;
+        var position = id.pkl.signingpqc.core.VisibleSignature.bottomRightOfFirstPage(a4.getWidth(), a4.getHeight(),
+                List.of(identity.title() + ", " + identity.organizationalUnit()));
+        byte[] visible = signer.signVisible(pdf, rsaSigner, SignatureDetails.of(identity.commonName(), "Persetujuan dokumen"),
+                position, new id.pkl.signingpqc.core.TimestampClient(new LocalTsa(tsas.get("rsa"))));
+        visible = signer.signInvisible(visible, mldsaSigner, SignatureDetails.of(identity.commonName(), "Persetujuan dokumen"),
+                new id.pkl.signingpqc.core.TimestampClient(new LocalTsa(tsas.get("mldsa"))));
+        Files.write(out.resolve("04-hybrid-visible-bt.pdf"), visible);
+        try (PDDocument document = Loader.loadPDF(visible)) {
+            javax.imageio.ImageIO.write(new org.apache.pdfbox.rendering.PDFRenderer(document).renderImage(0, 1.5f), "png",
+                    out.resolve("04-halaman1.png").toFile());
+        }
+        for (SignatureReport report : new PdfSignatureVerifier().verify(visible)) {
+            System.out.printf("Visible [%d] %-10s level=%s sah=%s%n", report.order(), report.signatureAlgorithm(),
+                    report.padesLevel(), report.valid());
+        }
         System.out.println("Keluaran PKI uji: " + out.toAbsolutePath());
     }
 }

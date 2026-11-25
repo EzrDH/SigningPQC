@@ -62,4 +62,4 @@ powershell -ExecutionPolicy Bypass -File scripts\cek-pki.ps1
 
 ## Status
 
-Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 berjalan: PKI uji, TSA lokal RFC 3161, dan PAdES B-T (`03-hybrid-bt.pdf`) selesai, berikutnya tampilan tanda tangan RSA visible. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
+Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 berjalan: PKI uji, TSA lokal RFC 3161, PAdES B-T, dan tanda tangan RSA visible (`04-hybrid-visible-bt.pdf`) selesai, berikutnya REST tanda tangan dan uji vektor NIST ACVP. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
