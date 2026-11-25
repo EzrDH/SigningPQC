@@ -1,6 +1,6 @@
 # SigningPQC
 
-Purwarupa aplikasi penandatanganan PDF **hybrid RSA + ML-DSA** (FIPS 204) untuk PKL di BSrE.
+Purwarupa aplikasi penandatanganan PDF **hybrid RSA + ML-DSA** (FIPS 204).
 Tanda tangan RSA tampil di halaman, tanda tangan ML-DSA disematkan tersembunyi (invisible) dan menutup
 seluruh dokumen. Format mengikuti PAdES (ETSI EN 319 142), CMS (RFC 5652, RFC 9882), dan timestamp RFC 3161.
 
