@@ -81,7 +81,7 @@ Cara membaca: setiap kebutuhan punya kode, prioritas (W = wajib, S = sebaiknya, 
 |---|---|---|---|
 | KNF-01 | Kepatuhan | ML-DSA sesuai FIPS 204: grup wajib vektor NIST ACVP (keyGen, sigGen, sigVer) lulus 100% | JUnit dengan berkas ACVP |
 | KNF-02 | Kinerja | Penandatanganan hybrid satu PDF paling lama 2 detik, di luar waktu tunggu TSA | Rata-rata dan P95 dari 100 kali percobaan |
-| KNF-03 | Kompatibilitas | PDF hasil dapat dibuka di Adobe Reader, dan tanda tangan RSA terbaca sah | Uji manual di Adobe Reader terbaru |
+| KNF-03 | Kompatibilitas | PDF hasil dapat dibuka di Adobe Reader, dan tanda tangan RSA terbaca utuh (sah bila Root CA dipercaya). Status ML-DSA di Adobe tidak menjadi kriteria (T-011) | Uji manual di Adobe Reader terbaru |
 | KNF-04 | Interoperabilitas | CMS ML-DSA dan sertifikat ML-DSA dapat diverifikasi OpenSSL 3.5 | Skrip uji silang |
 | KNF-05 | Standar format | Struktur dokumen mengikuti PAdES B-LTA (ETSI EN 319 142-1), CMS RFC 5652 dan RFC 9882, TSP RFC 3161 | Pemeriksaan struktur dan EU DSS untuk bagian RSA |
 | KNF-06 | Keamanan | Password PKCS#12 tidak dicatat di log; kunci privat tidak pernah ditulis tanpa enkripsi | Tinjauan kode dan pemeriksaan log |
@@ -100,7 +100,7 @@ Cara membaca: setiap kebutuhan punya kode, prioritas (W = wajib, S = sebaiknya, 
 | Kode | Skenario | Hasil yang diharapkan | Kebutuhan |
 |---|---|---|---|
 | TC-01 | Tandatangani PDF satu halaman secara hybrid | Dua tanda tangan, RSA tampil, ML-DSA tersembunyi, keduanya sah | KF-12 s.d. KF-15, KF-23 |
-| TC-02 | Buka hasil TC-01 di Adobe Reader | Dokumen terbuka, tanda tangan RSA sah, tanda tangan ML-DSA tidak dikenal | KNF-03 |
+| TC-02 | Buka hasil TC-01 di Adobe Reader | Dokumen terbuka, kotak tanda tangan RSA tampil, dan RSA dinyatakan tidak berubah sejak ditandatangani (sah bila Root CA dipercaya). Tanda tangan ML-DSA ditandai tidak sah oleh Adobe karena Adobe belum mendukung ML-DSA; keterbatasan ini diterima (revisi 25 Nov 2026, T-011) | KNF-03 |
 | TC-03 | Ubah satu byte isi PDF setelah ditandatangani | Kedua tanda tangan ditolak dengan alasan dokumen berubah | KF-20 |
 | TC-04 | Gunakan sertifikat yang sudah dicabut | Status ditolak dengan alasan sertifikat dicabut | KF-05, KF-21 |
 | TC-05 | Tambahkan B-LT dan B-LTA | DSS dan document timestamp ada, dan validasi tetap sah | KF-16, KF-17 |

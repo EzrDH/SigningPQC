@@ -84,4 +84,4 @@ powershell -ExecutionPolicy Bypass -File scripts\coba-rest.ps1 -Pdf "backend\spi
 
 ## Status
 
-Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 hampir selesai: PKI uji, TSA lokal RFC 3161, PAdES B-T, tanda tangan RSA visible, uji vektor NIST ACVP, dan REST lokal sudah jalan. Tinggal uji ulang di PdfCraft/Adobe. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
+Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 selesai: PKI uji, TSA lokal RFC 3161, PAdES B-T, tanda tangan RSA visible, uji vektor NIST ACVP, REST lokal, dan uji ulang di PdfCraft/Adobe (T-011). Catatan: Adobe menandai tanda tangan ML-DSA tidak sah karena belum mendukung ML-DSA; ini keterbatasan yang diterima. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.

@@ -104,7 +104,7 @@ Karena backend berbentuk REST, aplikasi ini nantinya juga bisa dijadikan layanan
 
 ## 9. Ukuran keberhasilan
 
-1. PDF hasil aplikasi dapat dibuka di Adobe Reader, dan tanda tangan RSA terbaca sah.
+1. PDF hasil aplikasi dapat dibuka di Adobe Reader, dan tanda tangan RSA terbaca utuh (sah bila Root CA dipercaya).
 2. Tanda tangan ML-DSA lolos verifikasi di aplikasi sendiri dan di OpenSSL.
 3. Uji vektor ACVP ML-DSA untuk grup wajib lulus 100%.
 4. Dokumen yang diubah satu byte saja ditolak oleh verifikator.
@@ -113,7 +113,7 @@ Karena backend berbentuk REST, aplikasi ini nantinya juga bisa dijadikan layanan
 
 ## 10. Risiko dan asumsi
 
-- Adobe Reader akan menampilkan tanda tangan ML-DSA sebagai tidak dikenal. Hal ini sudah diperkirakan dan menjadi temuan kompatibilitas.
+- Adobe Reader menandai tanda tangan ML-DSA sebagai **tidak sah** (bukan tidak dikenal), sehingga panel Adobe menampilkan "At least one signature is invalid". Mengganti /Filter atau /SubFilter tidak mengubah hasil ini. Keterbatasan ini diterima (keputusan 25 Nov 2026): struktur tetap PAdES standar, dan verifier aplikasi menjadi acuan sampai Adobe mendukung ML-DSA. Lihat T-011.
 - Stack berubah dari desain Hari 8 (Go, modul CA Java, Vue) menjadi Vue + Java Spring Boot dalam aplikasi desktop Electron. Vue dan Java + Bouncy Castle tetap dipakai, layanan Go dihapus. Perubahan ini perlu disetujui pembimbing lapangan.
 - Electron menambah ukuran aplikasi (sekitar 150 sampai 250 MB termasuk JRE). Ini wajar untuk prototipe.
 - Libur Natal dan Tahun Baru mengurangi waktu di minggu ke-10 dan ke-11.

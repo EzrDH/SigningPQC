@@ -8,7 +8,7 @@
 | Kebutuhan terkait | KNF-03, TC-02, KF tanda tangan visible dan B-T |
 | Lingkungan | Windows 11 (laptop), PdfCraft (versi belum dicatat), Adobe Acrobat Reader (versi belum dicatat), Temurin JDK 25.0.5, OpenSSL 3.5.9 |
 | Berkas uji | `00-asli-ttd.pdf` (hasil REST, T-010) dan `backend\pki-output\04-hybrid-visible-bt.pdf` (T-008) |
-| Status | Bug OID diperbaiki dan terbukti di PdfCraft. ML-DSA tetap tidak sah di Adobe pada semua varian. Keputusan desain menunggu pengguna |
+| Status | Bug OID diperbaiki dan terbukti di PdfCraft. ML-DSA tidak sah di Adobe diterima sebagai keterbatasan (keputusan 25 Nov 2026) |
 
 ## Ringkasan
 Kotak tanda tangan RSA tampil benar di PdfCraft dan Adobe, dan kedua pembaca menyatakan dokumen tidak berubah
@@ -125,7 +125,9 @@ Pilihan yang tersisa:
    perlu diuji dulu di Adobe.
 
 ## Tindak lanjut
-- Keputusan pengguna: pilihan 1 atau 2 di atas. Hasilnya dicatat di sini dan di dokumen kebutuhan (TC-02).
+- **Keputusan (25 Nov 2026): pilihan 1, terima dan dokumentasikan.** Struktur dua tanda tangan berurutan dengan kamus
+  PAdES standar tetap dipakai. KNF-03, TC-02, dan risiko di PRD sudah direvisi. Verifier aplikasi menjadi acuan
+  status tanda tangan ML-DSA. Uji ulang di Adobe versi berikutnya untuk melihat kapan ML-DSA didukung.
 - Opsional: tambahkan `rsa-root.pem` ke sertifikat tepercaya Adobe (Edit > Preferences > Signatures > Identities &
   Trusted Certificates) untuk melihat status RSA dan timestamp saat CA dipercaya.
 - Catat versi PdfCraft dan Adobe Reader (Help > About) untuk T-002 dan T-011.
