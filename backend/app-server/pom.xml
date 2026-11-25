@@ -13,6 +13,10 @@
   <name>SigningPQC App Server</name>
   <description>REST lokal (Spring Boot) yang dipanggil frontend Vue</description>
 
+  <properties>
+    <spring-boot.run.skip>false</spring-boot.run.skip>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>id.pkl.signingpqc</groupId>
