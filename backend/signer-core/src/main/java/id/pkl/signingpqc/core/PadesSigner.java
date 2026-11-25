@@ -15,13 +15,17 @@ import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
 /**
  * Menambahkan tanda tangan PAdES (ETSI.CAdES.detached) ke PDF sebagai incremental update.
  *
- * <p>Sprint 0: tanda tangan invisible. Tampilan visible untuk RSA ditambahkan pada Sprint 1.
+ * <p>Tanda tangan invisible, dengan atau tanpa signature timestamp (B-B atau B-T). Tampilan visible untuk
+ * RSA ditambahkan pada Sprint 1.
  */
 public final class PadesSigner {
 
-    /** Ruang /Contents (byte biner) untuk tanda tangan RSA dan ML-DSA, termasuk cadangan timestamp. */
+    /** Ruang /Contents (byte biner) untuk CMS RSA dan ML-DSA tanpa timestamp. */
     static final int RSA_SIGNATURE_SPACE = 16 * 1024;
     static final int ML_DSA_SIGNATURE_SPACE = 48 * 1024;
+    /** Tambahan ruang untuk token signature timestamp (token beserta rantai sertifikat TSA). */
+    static final int RSA_TIMESTAMP_SPACE = 16 * 1024;
+    static final int ML_DSA_TIMESTAMP_SPACE = 40 * 1024;
 
     private final CadesSignatureBuilder cadesBuilder;
 
@@ -35,6 +39,15 @@ public final class PadesSigner {
 
     public byte[] signInvisible(byte[] pdf, SigningCredential credential, SignatureDetails details)
             throws IOException, GeneralSecurityException {
+        return signInvisible(pdf, credential, details, null);
+    }
+
+    /**
+     * Tanda tangan invisible; bila tsa tidak null, CMS diberi signature timestamp (PAdES B-T).
+     */
+    public byte[] signInvisible(byte[] pdf, SigningCredential credential, SignatureDetails details,
+            TimestampClient tsa) throws IOException, GeneralSecurityException {
+        int space = signatureSpace(credential.algorithm(), tsa != null);
         try (PDDocument document = Loader.loadPDF(pdf);
                 SignatureOptions options = new SignatureOptions();
                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
@@ -47,7 +60,7 @@ public final class PadesSigner {
             signature.setLocation(details.location());
             signature.setSignDate(Calendar.getInstance());
 
-            options.setPreferredSignatureSize(signatureSpace(credential.algorithm()));
+            options.setPreferredSignatureSize(space);
             document.addSignature(signature, options);
 
             ExternalSigningSupport externalSigning = document.saveIncrementalForExternalSigning(output);
@@ -55,16 +68,20 @@ public final class PadesSigner {
             try (InputStream content = externalSigning.getContent()) {
                 toBeSigned = content.readAllBytes();
             }
-            byte[] cms = cadesBuilder.sign(toBeSigned, credential);
-            if (cms.length > signatureSpace(credential.algorithm())) {
-                throw new GeneralSecurityException("Ruang tanda tangan tidak cukup: CMS " + cms.length + " byte");
+            byte[] cms = cadesBuilder.sign(toBeSigned, credential, tsa);
+            if (cms.length > space) {
+                throw new GeneralSecurityException("Ruang tanda tangan tidak cukup: CMS " + cms.length
+                        + " byte, ruang " + space + " byte");
             }
             externalSigning.setSignature(cms);
             return output.toByteArray();
         }
     }
 
-    static int signatureSpace(SignatureAlgorithm algorithm) {
-        return algorithm.isPostQuantum() ? ML_DSA_SIGNATURE_SPACE : RSA_SIGNATURE_SPACE;
+    static int signatureSpace(SignatureAlgorithm algorithm, boolean withTimestamp) {
+        if (algorithm.isPostQuantum()) {
+            return ML_DSA_SIGNATURE_SPACE + (withTimestamp ? ML_DSA_TIMESTAMP_SPACE : 0);
+        }
+        return RSA_SIGNATURE_SPACE + (withTimestamp ? RSA_TIMESTAMP_SPACE : 0);
     }
 }

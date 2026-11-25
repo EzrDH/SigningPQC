@@ -66,6 +66,15 @@ public final class CadesSignatureBuilder {
      * Menandatangani isi yang ditunjuk ByteRange PDF dan mengembalikan CMS dalam bentuk DER.
      */
     public byte[] sign(byte[] content, SigningCredential credential) throws GeneralSecurityException {
+        return sign(content, credential, null);
+    }
+
+    /**
+     * Seperti {@link #sign(byte[], SigningCredential)}, dan bila tsa tidak null menambahkan signature
+     * timestamp (PAdES B-T) dengan imprint memakai digest algoritma tanda tangan (SHA-256 atau SHA-512).
+     */
+    public byte[] sign(byte[] content, SigningCredential credential, TimestampClient tsa)
+            throws GeneralSecurityException {
         try {
             DigestCalculatorProvider digestProvider = new JcaDigestCalculatorProviderBuilder()
                     .setProvider(CryptoProviders.BC)
@@ -92,6 +101,9 @@ public final class CadesSignatureBuilder {
             generator.addCertificates(new JcaCertStore(credential.chain()));
 
             CMSSignedData signedData = generator.generate(new CMSProcessableByteArray(content), false);
+            if (tsa != null) {
+                signedData = SignatureTimestamps.addTo(signedData, tsa, credential.algorithm().digestName());
+            }
             return signedData.getEncoded("DER");
         } catch (OperatorCreationException | CMSException | IOException e) {
             throw new GeneralSecurityException("Gagal membuat CMS: " + e.getMessage(), e);

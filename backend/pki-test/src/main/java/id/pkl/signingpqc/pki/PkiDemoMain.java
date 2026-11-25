@@ -118,6 +118,34 @@ public final class PkiDemoMain {
             System.out.printf("[%d] %-10s %s sah=%s%n", report.order(), report.signatureAlgorithm(),
                     report.signerSubject(), report.valid());
         }
+
+        // PAdES B-T: tanda tangan RSA diberi timestamp TSA RSA, tanda tangan ML-DSA diberi timestamp TSA ML-DSA.
+        byte[] bt = signer.signInvisible(pdf, rsaSigner, SignatureDetails.of(identity.commonName(), "Tanda tangan RSA (B-T)"),
+                new id.pkl.signingpqc.core.TimestampClient(new LocalTsa(tsas.get("rsa"))));
+        bt = signer.signInvisible(bt, mldsaSigner, SignatureDetails.of(identity.commonName(), "Tanda tangan ML-DSA (B-T)"),
+                new id.pkl.signingpqc.core.TimestampClient(new LocalTsa(tsas.get("mldsa"))));
+        Files.write(out.resolve("03-hybrid-bt.pdf"), bt);
+        try (PDDocument document = Loader.loadPDF(bt)) {
+            int index = 0;
+            for (PDSignature signature : document.getSignatureDictionaries()) {
+                index++;
+                byte[] cms = PdfSignatureVerifier.firstDerObject(signature.getContents(bt));
+                Files.write(out.resolve("bt" + index + ".p7s"), cms);
+                Files.write(out.resolve("bt" + index + "-isi.bin"), signature.getSignedContent(bt));
+                // Token signature timestamp dan data yang di-timestamp (nilai tanda tangan SignerInfo).
+                var signerInfo = new org.bouncycastle.cms.CMSSignedData(cms).getSignerInfos().getSigners().iterator().next();
+                Files.write(out.resolve("bt" + index + "-ts.tst"),
+                        id.pkl.signingpqc.core.SignatureTimestamps.tokenOf(signerInfo).getEncoded());
+                Files.write(out.resolve("bt" + index + "-ts-data.bin"), signerInfo.getSignature());
+            }
+        }
+        for (SignatureReport report : new PdfSignatureVerifier().verify(bt)) {
+            var ts = report.signatureTimestamp();
+            System.out.printf("B-T [%d] %-10s level=%s sah=%s CMS %,d B, timestamp %s oleh %s (%s)%n", report.order(),
+                    report.signatureAlgorithm(), report.padesLevel(), report.valid(), report.cmsSizeBytes(),
+                    ts == null ? "-" : ts.time(), ts == null ? "-" : ts.tsaSubject(),
+                    ts == null ? "-" : ts.signatureAlgorithm());
+        }
         System.out.println("Keluaran PKI uji: " + out.toAbsolutePath());
     }
 }

@@ -63,6 +63,26 @@ try {
     Catat "CMS ML-DSA + rantai" $true $LASTEXITCODE
     openssl cms -verify -binary -inform DER -in tt2.p7s -content tt2-isi.bin -CAfile rsa-root.pem -purpose any -out NUL 2>&1 | Out-Null
     Catat "CMS ML-DSA dengan root salah" $false $LASTEXITCODE
+
+    Write-Host "`n=== PAdES B-T di 03-hybrid-bt.pdf (signature timestamp) ==="
+    openssl cms -verify -binary -inform DER -in bt1.p7s -content bt1-isi.bin -CAfile rsa-root.pem -purpose any -out NUL 2>&1 | ForEach-Object { "$_" } | Out-Host
+    Catat "B-T CMS RSA + rantai" $true $LASTEXITCODE
+    openssl cms -verify -binary -inform DER -in bt2.p7s -content bt2-isi.bin -CAfile mldsa-root.pem -purpose any -out NUL 2>&1 | ForEach-Object { "$_" } | Out-Host
+    Catat "B-T CMS ML-DSA + rantai" $true $LASTEXITCODE
+    foreach ($i in 1, 2) {
+        $ada = @(openssl cms -cmsout -print -inform DER -in "bt$i.p7s" | Select-String "id-smime-aa-timeStampToken").Count
+        Write-Host "bt$i.p7s: atribut signatureTimeStampToken ditemukan $ada kali"
+        Catat "B-T tt$i punya atribut signatureTimeStampToken" $true $(if ($ada -ge 1) { 0 } else { 1 })
+    }
+    openssl ts -verify -token_in -in bt1-ts.tst -data bt1-ts-data.bin -CAfile rsa-root.pem -untrusted rsa-intermediate.pem 2>&1 | ForEach-Object { "$_" } | Out-Host
+    Catat "B-T timestamp RSA atas nilai tanda tangan" $true $LASTEXITCODE
+    openssl cms -verify -inform DER -in bt2-ts.tst -CAfile mldsa-root.pem -certfile mldsa-intermediate.pem -purpose any -out bt2-tstinfo.der 2>&1 | ForEach-Object { "$_" } | Out-Host
+    Catat "B-T token timestamp ML-DSA lewat openssl cms + rantai" $true $LASTEXITCODE
+    $imprint = (openssl asn1parse -inform DER -in bt2-tstinfo.der | Select-String "OCTET STRING" | Select-Object -First 1).ToString().Split(":")[-1].Trim()
+    $hashSig = (Get-FileHash -Algorithm SHA512 bt2-ts-data.bin).Hash
+    Write-Host "Imprint token ML-DSA      : $imprint"
+    Write-Host "SHA-512 nilai tanda tangan: $hashSig"
+    Catat "B-T imprint ML-DSA = SHA-512 nilai tanda tangan" $true $(if ($imprint -eq $hashSig) { 0 } else { 1 })
 } finally {
     Pop-Location
 }

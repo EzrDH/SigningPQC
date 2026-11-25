@@ -19,6 +19,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-004 | 25 Nov 2026 | Pengujian | Migrasi ke JDK 25 LTS dan uji silang ML-DSA bawaan JDK | Lulus |
 | T-005 | 25 Nov 2026 | Pengujian | PKI uji RSA dan ML-DSA, CRL, dan PKCS#12 | Lulus |
 | T-006 | 25 Nov 2026 | Pengujian dan temuan kompatibilitas | TSA lokal RFC 3161 dan keterbatasan `openssl ts` untuk ML-DSA | Lulus, keterbatasan tercatat |
+| T-007 | 25 Nov 2026 | Pengujian | PAdES B-T: signature timestamp pada tanda tangan hybrid | Lulus |
 
 ## Templat
 

@@ -15,9 +15,17 @@ public record SignatureReport(
         boolean coversWholeDocument,
         boolean signingCertificateMatches,
         boolean cryptographicallyValid,
-        String message) {
+        String message,
+        TimestampReport signatureTimestamp) {
 
+    /** Sah bila tanda tangan dan signing-certificate-v2 benar, dan signature timestamp (bila ada) juga sah. */
     public boolean valid() {
-        return cryptographicallyValid && signingCertificateMatches;
+        return cryptographicallyValid && signingCertificateMatches
+                && (signatureTimestamp == null || signatureTimestamp.valid());
+    }
+
+    /** Level PAdES baseline yang terpenuhi secara struktur: B-T bila ada signature timestamp sah, selain itu B-B. */
+    public String padesLevel() {
+        return signatureTimestamp != null && signatureTimestamp.valid() ? "B-T" : "B-B";
     }
 }

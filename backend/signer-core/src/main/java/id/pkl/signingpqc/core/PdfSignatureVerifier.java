@@ -29,8 +29,8 @@ import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
  * Memeriksa setiap tanda tangan PAdES di dalam PDF: keutuhan isi (message-digest atas ByteRange),
  * keabsahan tanda tangan kriptografis (RSA atau ML-DSA), dan kecocokan signing-certificate-v2.
  *
- * <p>Sprint 0 belum memeriksa rantai sertifikat, pencabutan, dan timestamp. Bagian itu ditambahkan
- * pada Sprint 1 sampai 3.
+ * <p>Signature timestamp (B-T) diperiksa: tanda tangan token, ESSCertID TSA, dan imprint atas nilai
+ * tanda tangan. Rantai sertifikat, pencabutan, dan validasi pada waktu timestamp ditambahkan pada Sprint 2-3.
  */
 public final class PdfSignatureVerifier {
 
@@ -70,12 +70,21 @@ public final class PdfSignatureVerifier {
                         "Sertifikat penanda tangan tidak ditemukan di dalam CMS");
             }
             X509CertificateHolder certificate = matches.iterator().next();
-            boolean valid = signer.verify(new JcaSimpleSignerInfoVerifierBuilder()
-                    .setProvider(CryptoProviders.BC)
-                    .build(certificate));
+            boolean valid;
+            boolean digestMismatch = false;
+            try {
+                valid = signer.verify(new JcaSimpleSignerInfoVerifierBuilder()
+                        .setProvider(CryptoProviders.BC)
+                        .build(certificate));
+            } catch (org.bouncycastle.cms.CMSSignerDigestMismatchException e) {
+                valid = false;
+                digestMismatch = true;
+            }
             boolean certMatches = signingCertificateMatches(signer, certificate);
             String message;
-            if (!valid) {
+            if (digestMismatch) {
+                message = "Isi dokumen telah diubah setelah ditandatangani (message-digest tidak cocok)";
+            } else if (!valid) {
                 message = "Tanda tangan tidak sah atau dokumen telah diubah";
             } else if (!certMatches) {
                 message = "Atribut signing-certificate-v2 tidak cocok dengan sertifikat penanda tangan";
@@ -86,7 +95,7 @@ public final class PdfSignatureVerifier {
                     AlgorithmNames.signature(signer.getEncryptionAlgOID()),
                     AlgorithmNames.digest(signer.getDigestAlgOID()),
                     certificate.getSubject().toString(), claimed, cmsBytes.length,
-                    coversWholeDocument, certMatches, valid, message);
+                    coversWholeDocument, certMatches, valid, message, SignatureTimestamps.inspect(signer));
         } catch (Exception e) {
             String reason = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             return failed(order, fieldName, subFilter, claimed, coversWholeDocument,
@@ -128,6 +137,6 @@ public final class PdfSignatureVerifier {
     private static SignatureReport failed(int order, String fieldName, String subFilter,
             java.time.Instant claimed, boolean coversWholeDocument, String message) {
         return new SignatureReport(order, fieldName, subFilter, "-", "-", "-", claimed, 0,
-                coversWholeDocument, false, false, message);
+                coversWholeDocument, false, false, message, null);
     }
 }
