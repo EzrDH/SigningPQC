@@ -1,0 +1,25 @@
+# Java / Maven
+backend/**/target/
+*.class
+*.log
+
+# Node / Vue
+frontend/node_modules/
+frontend/dist/
+desktop/node_modules/
+desktop/dist/
+
+# Keluaran uji dan kunci uji (jangan di-commit)
+**/spike-output/
+output/
+*.p12
+*.pfx
+*.key
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+.DS_Store
+Thumbs.db
