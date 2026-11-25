@@ -163,25 +163,6 @@ public final class PkiDemoMain {
             System.out.printf("Visible [%d] %-10s level=%s sah=%s%n", report.order(), report.signatureAlgorithm(),
                     report.padesLevel(), report.valid());
         }
-        // Eksperimen interoperabilitas (T-011): Adobe menandai ML-DSA "tidak sah" bila kamusnya PAdES standar.
-        // Varian ini mengganti nama handler pada tanda tangan ML-DSA saja, untuk dilihat apakah pembaca
-        // menampilkan "tidak diketahui". Varian ini tidak sesuai PAdES, hanya untuk uji di pembaca.
-        record Variant(String file, String filter, String subFilter) { }
-        for (Variant variant : List.of(
-                new Variant("05a-eksperimen-filter.pdf", "SigningPQC.PQC", "ETSI.CAdES.detached"),
-                new Variant("05b-eksperimen-subfilter.pdf", "Adobe.PPKLite", "SigningPQC.CAdES.MLDSA"))) {
-            byte[] experiment = signer.signVisible(pdf, rsaSigner,
-                    SignatureDetails.of(identity.commonName(), "Persetujuan dokumen"), position,
-                    new id.pkl.signingpqc.core.TimestampClient(new LocalTsa(tsas.get("rsa"))));
-            experiment = signer.withDictionaryNames(variant.filter(), variant.subFilter()).signInvisible(experiment,
-                    mldsaSigner, SignatureDetails.of(identity.commonName(), "Persetujuan dokumen"),
-                    new id.pkl.signingpqc.core.TimestampClient(new LocalTsa(tsas.get("mldsa"))));
-            Files.write(out.resolve(variant.file()), experiment);
-            for (SignatureReport report : new PdfSignatureVerifier().verify(experiment)) {
-                System.out.printf("%s [%d] %-10s subFilter=%s sah=%s%n", variant.file(), report.order(),
-                        report.signatureAlgorithm(), report.subFilter(), report.valid());
-            }
-        }
         System.out.println("Keluaran PKI uji: " + out.toAbsolutePath());
     }
 }

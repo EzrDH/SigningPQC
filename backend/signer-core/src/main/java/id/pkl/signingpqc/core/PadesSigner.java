@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.TimeZone;
 
 import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.ExternalSigningSupport;
@@ -32,36 +31,13 @@ public final class PadesSigner {
     static final int ML_DSA_TIMESTAMP_SPACE = 40 * 1024;
 
     private final CadesSignatureBuilder cadesBuilder;
-    private final String filter;
-    private final String subFilter;
 
     public PadesSigner() {
         this(new CadesSignatureBuilder());
     }
 
     public PadesSigner(CadesSignatureBuilder cadesBuilder) {
-        this(cadesBuilder, PDSignature.FILTER_ADOBE_PPKLITE.getName(),
-                PDSignature.SUBFILTER_ETSI_CADES_DETACHED.getName());
-    }
-
-    private PadesSigner(CadesSignatureBuilder cadesBuilder, String filter, String subFilter) {
         this.cadesBuilder = cadesBuilder;
-        this.filter = filter;
-        this.subFilter = subFilter;
-    }
-
-    /**
-     * Salinan signer dengan nama /Filter dan /SubFilter lain di kamus tanda tangan.
-     *
-     * <p>Hanya untuk eksperimen interoperabilitas (T-011): melihat apakah pembaca PDF yang belum mengenal
-     * ML-DSA menampilkan tanda tangan sebagai "tidak diketahui" alih-alih "tidak sah" bila handler-nya
-     * tidak dikenal. Nilai bawaan (Adobe.PPKLite + ETSI.CAdES.detached) adalah yang sesuai PAdES.
-     */
-    public PadesSigner withDictionaryNames(String filter, String subFilter) {
-        if (filter == null || filter.isBlank() || subFilter == null || subFilter.isBlank()) {
-            throw new IllegalArgumentException("Filter dan SubFilter wajib diisi");
-        }
-        return new PadesSigner(cadesBuilder, filter, subFilter);
     }
 
     public byte[] signInvisible(byte[] pdf, SigningCredential credential, SignatureDetails details)
@@ -93,8 +69,8 @@ public final class PadesSigner {
 
             Calendar signDate = Calendar.getInstance(TimeZone.getTimeZone(SignatureAppearance.WIB));
             PDSignature signature = new PDSignature();
-            signature.setFilter(COSName.getPDFName(filter));
-            signature.setSubFilter(COSName.getPDFName(subFilter));
+            signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);
+            signature.setSubFilter(PDSignature.SUBFILTER_ETSI_CADES_DETACHED);
             signature.setName(details.signerName());
             signature.setReason(details.reason());
             signature.setLocation(details.location());
