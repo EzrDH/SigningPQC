@@ -39,7 +39,7 @@ Sisa waktu on lokus hanya sekitar 3,5 minggu. Karena itu fitur yang bukan inti a
 ### Sprint 0: Persiapan (Rabu 25 sampai Jumat 27 Nov)
 
 - [ ] Konfirmasi ke pembimbing lapangan: Vue + Java Bouncy Castle, struktur hybrid berurutan, CA dan TSA uji buatan sendiri, target 18 Des
-- [ ] Pasang Maven dan Extension Pack for Java di VS Code (Java 21 dan Node.js 24 sudah ada)
+- [ ] Pasang Maven dan Extension Pack for Java di VS Code (JDK 25 dan Node.js 24 sudah ada)
 - [ ] Kerangka repositori: backend Maven multi-modul (Spring Boot 4.1) dan frontend Vue 3 + Vite + TypeScript
 - [ ] Bukti teknis: satu PDF ditandatangani ML-DSA-65 lewat PDFBox + Bouncy Castle, lalu dicek dengan OpenSSL
 

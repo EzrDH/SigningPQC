@@ -17,11 +17,11 @@
   </modules>
 
   <properties>
-    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <bouncycastle.version>1.87</bouncycastle.version>
     <pdfbox.version>3.0.8</pdfbox.version>
-    <spring-boot.version>4.1.3</spring-boot.version>
+    <spring-boot.version>4.2.0</spring-boot.version>
     <!-- spring-boot:run hanya dijalankan di app-server; modul lain (dan pom induk) dilewati. -->
     <spring-boot.run.skip>true</spring-boot.run.skip>
   </properties>
@@ -71,7 +71,54 @@
           <artifactId>spring-boot-maven-plugin</artifactId>
           <version>${spring-boot.version}</version>
         </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.16.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.6.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>3.5.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.5.0</version>
+        </plugin>
       </plugins>
     </pluginManagement>
+    <plugins>
+      <plugin>
+        <!-- Pastikan build memakai JDK 25 LTS dan Maven 3.9 ke atas. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>3.7.0</version>
+        <executions>
+          <execution>
+            <id>enforce-versions</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>[25,)</version>
+                  <message>SigningPQC membutuhkan JDK 25 LTS. Arahkan JAVA_HOME ke folder JDK 25.</message>
+                </requireJavaVersion>
+                <requireMavenVersion>
+                  <version>[3.9,)</version>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 </project>

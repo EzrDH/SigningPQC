@@ -46,8 +46,20 @@ import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
  */
 public final class CadesSignatureBuilder {
 
+    private final String signatureProvider;
+
+    /** Tanda tangan dibuat dengan provider Bouncy Castle. */
     public CadesSignatureBuilder() {
+        this(CryptoProviders.BC);
+    }
+
+    /**
+     * Tanda tangan dibuat dengan provider JCA tertentu, misalnya "SUN" untuk ML-DSA bawaan JDK 24+
+     * (dipakai pada uji interoperabilitas). Struktur CMS tetap dibuat oleh Bouncy Castle.
+     */
+    public CadesSignatureBuilder(String signatureProvider) {
         CryptoProviders.ensureRegistered();
+        this.signatureProvider = signatureProvider;
     }
 
     /**
@@ -59,7 +71,7 @@ public final class CadesSignatureBuilder {
                     .setProvider(CryptoProviders.BC)
                     .build();
             ContentSigner contentSigner = new JcaContentSignerBuilder(credential.algorithm().jcaSignatureName())
-                    .setProvider(CryptoProviders.BC)
+                    .setProvider(signatureProvider)
                     .build(credential.privateKey());
 
             Attribute signingCertificateV2 = signingCertificateV2(credential.certificate(), digestProvider);

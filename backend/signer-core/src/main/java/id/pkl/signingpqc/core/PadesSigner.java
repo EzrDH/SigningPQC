@@ -23,7 +23,15 @@ public final class PadesSigner {
     static final int RSA_SIGNATURE_SPACE = 16 * 1024;
     static final int ML_DSA_SIGNATURE_SPACE = 48 * 1024;
 
-    private final CadesSignatureBuilder cadesBuilder = new CadesSignatureBuilder();
+    private final CadesSignatureBuilder cadesBuilder;
+
+    public PadesSigner() {
+        this(new CadesSignatureBuilder());
+    }
+
+    public PadesSigner(CadesSignatureBuilder cadesBuilder) {
+        this.cadesBuilder = cadesBuilder;
+    }
 
     public byte[] signInvisible(byte[] pdf, SigningCredential credential, SignatureDetails details)
             throws IOException, GeneralSecurityException {

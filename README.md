@@ -12,13 +12,13 @@ seluruh dokumen. Format mengikuti PAdES (ETSI EN 319 142), CMS (RFC 5652, RFC 98
 |---|---|
 | `docs/` | PRD, dokumen kebutuhan, jadwal sprint |
 | `docs/temuan/` | Catatan temuan dan hasil pengujian (T-001, T-002, ...) |
-| `backend/` | Java 21, Maven multi-modul: `signer-core` (Bouncy Castle 1.87, PDFBox 3.0.8), `app-server` (Spring Boot 4.1, REST lokal) |
+| `backend/` | Java 25 LTS, Maven multi-modul: `signer-core` (Bouncy Castle 1.87, PDFBox 3.0.8), `app-server` (Spring Boot 4.2, REST lokal) |
 | `frontend/` | Vue 3 + Vite + TypeScript |
 | `scripts/` | Skrip bantu (uji silang OpenSSL) |
 
 ## Menjalankan
 
-Prasyarat: JDK 21, Node.js 22+, OpenSSL 3.5 (opsional, untuk uji silang). Maven tidak perlu dipasang, cukup `mvnw`.
+Prasyarat: JDK 25 LTS, Node.js 22+, OpenSSL 3.5 (opsional, untuk uji silang). Maven tidak perlu dipasang, cukup `mvnw`. Pastikan `JAVA_HOME` menunjuk ke JDK 25 (build akan berhenti dengan pesan jelas bila bukan JDK 25).
 
 ```powershell
 # 1. Backend: uji lalu jalankan REST di http://127.0.0.1:8085

@@ -16,6 +16,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-001 | 25 Nov 2026 | Pengujian | Bukti teknis Sprint 0: tanda tangan hybrid RSA + ML-DSA | Lulus |
 | T-002 | 25 Nov 2026 | Temuan kompatibilitas | PdfCraft tidak dapat memverifikasi tanda tangan ML-DSA-65 | Tercatat |
 | T-003 | 25 Nov 2026 | Bug | spring-boot:run gagal pada build multi-modul | Diperbaiki |
+| T-004 | 25 Nov 2026 | Pengujian | Migrasi ke JDK 25 LTS dan uji silang ML-DSA bawaan JDK | Lulus |
 
 ## Templat
 

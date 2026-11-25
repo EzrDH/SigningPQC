@@ -89,7 +89,7 @@ Cara membaca: setiap kebutuhan punya kode, prioritas (W = wajib, S = sebaiknya, 
 | KNF-08 | Kualitas kode | Tidak ada temuan prioritas tinggi pada analisis statis; cakupan uji modul inti minimal 70% | SpotBugs dan JaCoCo |
 | KNF-09 | Kemudahan pakai | Pengguna baru dapat menandatangani dokumen pertama dalam 5 menit dengan panduan | Uji dengan 2 sampai 3 rekan |
 | KNF-10 | Bahasa | Antarmuka dan pesan galat dalam Bahasa Indonesia | Pemeriksaan tampilan |
-| KNF-11 | Platform | Berjalan di Windows 10/11; JRE disertakan dalam paket, pengguna tidak perlu memasang Java | Uji di laptop lain tanpa Java |
+| KNF-11 | Platform | Berjalan di Windows 10/11 dengan Java 25; JRE disertakan dalam paket, pengguna tidak perlu memasang Java | Uji di laptop lain tanpa Java |
 | KNF-12 | Ukuran | Ukuran PDF bertambah dan dicatat per tingkat (B-T, B-LT, B-LTA) untuk dibandingkan dengan RSA saja | Tabel pengukuran |
 | KNF-13 | Lingkungan | Hanya memakai data sintetis dan tidak terhubung ke sistem produksi | Tinjauan konfigurasi |
 | KNF-14 | Keamanan | REST backend hanya mendengar di 127.0.0.1, memakai port acak dan token sesi; kunci privat tidak pernah dikirim ke frontend | Uji akses dari mesin lain dan tanpa token |

@@ -85,7 +85,7 @@ Frontend memakai Vue agar sejalan dengan teknologi yang dipakai BSrE, dan backen
 |---|---|
 | Frontend | Vue 3 + Vite + TypeScript, Pinia (state), Vue Router |
 | Penampil PDF | pdf.js (pdfjs-dist) di Vue |
-| Backend | Java 21 LTS + Spring Boot 4.1, REST lokal di 127.0.0.1 |
+| Backend | Java 25 LTS + Spring Boot 4.2, REST lokal di 127.0.0.1 |
 | Kriptografi | Bouncy Castle 1.87 (bcprov, bcpkix) |
 | PDF di backend | Apache PDFBox 3.0.8 (penyisipan tanda tangan, DSS, document timestamp) |
 | Pembungkus desktop | Electron: menjalankan backend Java (JRE hasil jlink) dan menampilkan Vue |
