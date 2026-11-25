@@ -48,7 +48,8 @@ powershell -ExecutionPolicy Bypass -File scripts\cek-openssl.ps1
 
 `PkiDemoMain` membuat dua hierarki CA uji (RSA: Root RSA-4096, CA antara RSA-3072; ML-DSA: Root ML-DSA-87,
 CA antara ML-DSA-65), pasangan sertifikat penanda tangan RSA + ML-DSA dengan identitas yang sama, sertifikat TSA,
-satu sertifikat yang dicabut, CRL, berkas PKCS#12, dan PDF hybrid `02-hybrid-ca.pdf` ke `backend/pki-output/`.
+satu sertifikat yang dicabut, CRL, berkas PKCS#12, PDF hybrid `02-hybrid-ca.pdf`, serta token timestamp RFC 3161
+dari TSA lokal RSA dan ML-DSA (`*-ts.tsq`, `*-ts.tsr`) ke `backend/pki-output/`.
 Kata sandi PKCS#12 uji: `uji-signingpqc` (hanya lingkungan uji; folder keluaran tidak di-commit).
 
 ```powershell
@@ -61,4 +62,4 @@ powershell -ExecutionPolicy Bypass -File scripts\cek-pki.ps1
 
 ## Status
 
-Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 berjalan: PKI uji selesai, berikutnya TSA uji RFC 3161. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
+Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 berjalan: PKI uji dan TSA lokal RFC 3161 selesai, berikutnya timestamp tanda tangan (PAdES B-T). Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.

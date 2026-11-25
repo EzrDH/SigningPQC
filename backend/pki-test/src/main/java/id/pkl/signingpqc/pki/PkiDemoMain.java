@@ -48,11 +48,13 @@ public final class PkiDemoMain {
         System.out.printf("Waktu membuat 2 hierarki CA + pasangan penanda tangan: %d ms%n",
                 (System.nanoTime() - start) / 1_000_000);
 
+        java.util.Map<String, SigningCredential> tsas = new java.util.LinkedHashMap<>();
         for (CaHierarchy hierarchy : List.of(rsa, mldsa)) {
             String slug = hierarchy.family().slug();
             SigningCredential signer = hierarchy == rsa ? pair.rsa() : pair.mlDsa();
             SigningCredential tsa = factory.issueTsa(hierarchy.intermediate(), "TSA Uji " + hierarchy.family().label(),
                     TestPkiFactory.TSA_VALIDITY);
+            tsas.put(slug, tsa);
             SigningCredential revoked = factory.issueSigner(hierarchy.intermediate(), identity);
 
             X509CRL rootCrl = factory.createCrl(hierarchy.root(), List.of(), 1);
@@ -92,6 +94,26 @@ public final class PkiDemoMain {
                 Files.write(out.resolve("tt" + index + "-isi.bin"), signature.getSignedContent(signed));
             }
         }
+        // Token RFC 3161 atas PDF hybrid dari TSA lokal RSA (SHA-256) dan ML-DSA (SHA-512), untuk dicek
+        // dengan "openssl ts -verify". Permintaan (.tsq) ikut disimpan agar nonce dan imprint ikut diperiksa.
+        for (var entry : tsas.entrySet()) {
+            String digest = "rsa".equals(entry.getKey()) ? "SHA-256" : "SHA-512";
+            byte[] imprint = java.security.MessageDigest.getInstance(digest).digest(signed);
+            org.bouncycastle.tsp.TimeStampRequestGenerator generator = new org.bouncycastle.tsp.TimeStampRequestGenerator();
+            generator.setCertReq(true);
+            byte[] query = generator.generate(
+                    "SHA-256".equals(digest) ? org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256
+                            : org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha512,
+                    imprint, java.math.BigInteger.valueOf(System.nanoTime())).getEncoded();
+            byte[] reply = new LocalTsa(entry.getValue()).handle(query);
+            Files.write(out.resolve(entry.getKey() + "-ts.tsq"), query);
+            Files.write(out.resolve(entry.getKey() + "-ts.tsr"), reply);
+            var token = new org.bouncycastle.tsp.TimeStampResponse(reply).getTimeStampToken();
+            System.out.printf("Timestamp %s: genTime %s, serial %s, sertifikat TSA sah=%s%n", entry.getKey(),
+                    token.getTimeStampInfo().getGenTime().toInstant(), token.getTimeStampInfo().getSerialNumber(),
+                    id.pkl.signingpqc.core.TimestampClient.verify(token) != null);
+        }
+
         for (SignatureReport report : new PdfSignatureVerifier().verify(signed)) {
             System.out.printf("[%d] %-10s %s sah=%s%n", report.order(), report.signatureAlgorithm(),
                     report.signerSubject(), report.valid());

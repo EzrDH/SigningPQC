@@ -18,6 +18,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-003 | 25 Nov 2026 | Bug | spring-boot:run gagal pada build multi-modul | Diperbaiki |
 | T-004 | 25 Nov 2026 | Pengujian | Migrasi ke JDK 25 LTS dan uji silang ML-DSA bawaan JDK | Lulus |
 | T-005 | 25 Nov 2026 | Pengujian | PKI uji RSA dan ML-DSA, CRL, dan PKCS#12 | Lulus |
+| T-006 | 25 Nov 2026 | Pengujian dan temuan kompatibilitas | TSA lokal RFC 3161 dan keterbatasan `openssl ts` untuk ML-DSA | Lulus, keterbatasan tercatat |
 
 ## Templat
 

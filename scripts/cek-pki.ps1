@@ -1,4 +1,4 @@
-# Pemeriksaan silang PKI uji (keluaran PkiDemoMain) dengan OpenSSL 3.5 (mendukung ML-DSA).
+# Pemeriksaan silang PKI uji dan TSA lokal RFC 3161 (keluaran PkiDemoMain) dengan OpenSSL 3.5 (mendukung ML-DSA).
 # Pemakaian (dari folder repositori):  powershell -ExecutionPolicy Bypass -File scripts\cek-pki.ps1
 param([string]$Folder = "backend\pki-output", [string]$Sandi = "uji-signingpqc")
 
@@ -28,6 +28,32 @@ try {
         Catat "$k buka PKCS#12" $true $LASTEXITCODE
         openssl pkcs12 -in "$k-penanda-tangan.p12" -passin "pass:salah" -noout 2>&1 | Out-Null
         Catat "$k PKCS#12 sandi salah" $false $LASTEXITCODE
+
+        # Token RFC 3161 dari TSA lokal: tampilkan isi, lalu verifikasi terhadap permintaan dan data.
+        openssl ts -reply -in "$k-ts.tsr" -text 2>&1 | ForEach-Object { "$_" } | Select-String "Status:|Policy OID|Hash Algorithm|Time stamp:|Accuracy|Nonce|TSA:" | Out-Host
+        if ($k -eq "rsa") {
+            openssl ts -verify -in "$k-ts.tsr" -queryfile "$k-ts.tsq" -CAfile "$k-root.pem" -untrusted "$k-intermediate.pem" 2>&1 | ForEach-Object { "$_" } | Out-Host
+            Catat "$k timestamp vs permintaan (nonce, imprint)" $true $LASTEXITCODE
+            openssl ts -verify -in "$k-ts.tsr" -data 02-hybrid-ca.pdf -CAfile "$k-root.pem" -untrusted "$k-intermediate.pem" 2>&1 | ForEach-Object { "$_" } | Out-Host
+            Catat "$k timestamp vs data PDF" $true $LASTEXITCODE
+            openssl ts -verify -in "$k-ts.tsr" -data tt1-isi.bin -CAfile "$k-root.pem" -untrusted "$k-intermediate.pem" 2>&1 | Out-Null
+            Catat "$k timestamp vs data lain" $false $LASTEXITCODE
+        } else {
+            # Keterbatasan OpenSSL 3.5: perintah "openssl ts" memakai modul PKCS7 yang belum mendukung ML-DSA
+            # (lihat T-006). Token tetap diperiksa lewat modul CMS dan imprint dibandingkan manual.
+            openssl ts -verify -in "$k-ts.tsr" -data 02-hybrid-ca.pdf -CAfile "$k-root.pem" -untrusted "$k-intermediate.pem" 2>&1 | Out-Null
+            Catat "$k openssl ts -verify (PKCS7 belum dukung ML-DSA)" $false $LASTEXITCODE
+            openssl ts -reply -in "$k-ts.tsr" -token_out -out "$k-ts.tst" 2>&1 | Out-Null
+            openssl cms -verify -inform DER -in "$k-ts.tst" -CAfile "$k-root.pem" -certfile "$k-intermediate.pem" -purpose any -out "$k-tstinfo.der" 2>&1 | ForEach-Object { "$_" } | Out-Host
+            Catat "$k token timestamp lewat openssl cms + rantai" $true $LASTEXITCODE
+            $imprint = (openssl asn1parse -inform DER -in "$k-tstinfo.der" | Select-String "OCTET STRING" | Select-Object -First 1).ToString().Split(":")[-1].Trim()
+            Write-Host "Imprint token : $imprint"
+            $hashPdf = (Get-FileHash -Algorithm SHA512 02-hybrid-ca.pdf).Hash
+            Write-Host "SHA-512 PDF   : $hashPdf"
+            Catat "$k imprint token = SHA-512 PDF" $true $(if ($imprint -eq $hashPdf) { 0 } else { 1 })
+            $hashLain = (Get-FileHash -Algorithm SHA512 tt1-isi.bin).Hash
+            Catat "$k imprint token = SHA-512 data lain" $false $(if ($imprint -eq $hashLain) { 0 } else { 1 })
+        }
     }
 
     Write-Host "`n=== Tanda tangan di 02-hybrid-ca.pdf (rantai diperiksa sampai root) ==="
