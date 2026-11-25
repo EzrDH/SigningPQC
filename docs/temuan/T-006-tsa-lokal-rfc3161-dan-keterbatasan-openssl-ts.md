@@ -34,7 +34,8 @@ Komponen baru:
 | `TimestampTransport`, `HttpTimestampTransport` | signer-core | Pengiriman permintaan; HTTP POST `application/timestamp-query` |
 | `LocalTsa` | pki-test | TSA uji: imprint SHA-256/384/512, accuracy 1 detik, ESSCertIDv2, rantai TSA disertakan, nomor seri naik, menolak bila sertifikat TSA tidak berlaku pada jam TSA |
 
-Profil token: kebijakan uji `2.25.36705446734633049719210837150943547147` (OID berbasis UUID). Token RSA memakai
+Profil token: kebijakan uji `1.3.6.1.4.1.32473.1.1` (nomor enterprise dokumentasi, RFC 5612). Versi awal memakai
+OID berbasis UUID `2.25.36705446734633049719210837150943547147`, yang ditolak PdfCraft karena arc-nya terlalu besar (lihat T-011). Token RSA memakai
 sha256WithRSAEncryption dan digest SHA-256. Token ML-DSA memakai ML-DSA-65 (OID 2.16.840.1.101.3.4.3.18) dan
 digest SHA-512 sesuai RFC 9882.
 

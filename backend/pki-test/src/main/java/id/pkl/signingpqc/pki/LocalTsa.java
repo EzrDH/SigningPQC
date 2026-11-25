@@ -51,9 +51,14 @@ import id.pkl.signingpqc.core.TimestampTransport;
  */
 public final class LocalTsa implements TimestampTransport {
 
-    /** OID kebijakan TSA uji (OID berbasis UUID, arc 2.25, tidak terdaftar ke pihak mana pun). */
-    public static final ASN1ObjectIdentifier TEST_POLICY =
-            new ASN1ObjectIdentifier("2.25.36705446734633049719210837150943547147");
+    /**
+     * OID kebijakan TSA uji, di bawah nomor enterprise 32473 yang dicadangkan untuk dokumentasi (RFC 5612).
+     *
+     * <p>Sebelumnya dipakai OID berbasis UUID (2.25.&lt;bilangan 128 bit&gt;). Arc sebesar itu sah menurut
+     * X.660, tetapi PdfCraft menolaknya ("OID arc too large") sehingga timestamp tidak bisa dibaca (T-011).
+     * Semua arc di sini muat dalam 32 bit.
+     */
+    public static final ASN1ObjectIdentifier TEST_POLICY = new ASN1ObjectIdentifier("1.3.6.1.4.1.32473.1.1");
 
     private static final Set<ASN1ObjectIdentifier> ACCEPTED_DIGESTS = Set.of(
             NISTObjectIdentifiers.id_sha256, NISTObjectIdentifiers.id_sha384, NISTObjectIdentifiers.id_sha512);

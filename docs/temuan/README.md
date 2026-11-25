@@ -23,6 +23,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-008 | 25 Nov 2026 | Pengujian | Tanda tangan RSA visible dan ML-DSA invisible | Lulus |
 | T-009 | 25 Nov 2026 | Pengujian | Uji vektor NIST ACVP untuk ML-DSA (615 kasus, 39 grup) | Lulus |
 | T-010 | 25 Nov 2026 | Pengujian | REST lokal untuk alur TTE hybrid dan waktu tanda tangan (rata-rata 24 ms) | Lulus |
+| T-011 | 25 Nov 2026 | Pengujian, bug, dan temuan kompatibilitas | Uji ulang di PdfCraft dan Adobe: OID kebijakan TSA ditolak, ML-DSA dianggap tidak sah oleh Adobe | OID diperbaiki, eksperimen Adobe menunggu uji |
 
 ## Templat
 

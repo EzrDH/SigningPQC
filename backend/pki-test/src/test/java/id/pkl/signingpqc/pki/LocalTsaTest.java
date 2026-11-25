@@ -14,6 +14,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.ASN1Set;
+import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.cmp.PKIFailureInfo;
 import org.bouncycastle.asn1.cmp.PKIStatus;
 import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
@@ -130,6 +137,46 @@ class LocalTsaTest {
             TimestampException error = assertThrows(TimestampException.class,
                     () -> new TimestampClient(tsa).timestamp(DATA, "SHA-256"));
             assertTrue(error.getMessage().contains("Sertifikat TSA tidak berlaku"), error.getMessage());
+        }
+    }
+
+    /**
+     * Regresi T-011: PdfCraft menolak token yang memuat OID dengan arc lebih dari 64 bit ("OID arc too large").
+     * Semua OID di token (termasuk di dalam sertifikat TSA dan TSTInfo) harus punya arc yang muat dalam 32 bit.
+     */
+    @Test
+    void semuaOidDiTokenPunyaArcKecil() throws Exception {
+        for (TimeStampToken token : List.of(new TimestampClient(rsaTsa).timestamp(DATA, "SHA-256"),
+                new TimestampClient(mldsaTsa).timestamp(DATA, "SHA-512"))) {
+            List<String> oids = new java.util.ArrayList<>();
+            collectOids(ASN1Primitive.fromByteArray(token.getEncoded()), oids);
+            assertTrue(oids.contains(LocalTsa.TEST_POLICY.getId()), "OID kebijakan ada di token");
+            for (String oid : oids) {
+                for (String arc : oid.split("\\.")) {
+                    assertTrue(new BigInteger(arc).bitLength() <= 32, "arc terlalu besar di OID " + oid);
+                }
+            }
+        }
+    }
+
+    /** Menelusuri struktur ASN.1, termasuk OCTET STRING yang membungkus DER (eContent TSTInfo, ekstensi). */
+    private static void collectOids(ASN1Encodable node, List<String> oids) {
+        ASN1Primitive primitive = node.toASN1Primitive();
+        if (primitive instanceof ASN1ObjectIdentifier oid) {
+            oids.add(oid.getId());
+        } else if (primitive instanceof ASN1Sequence sequence) {
+            sequence.forEach(child -> collectOids(child, oids));
+        } else if (primitive instanceof ASN1Set set) {
+            set.forEach(child -> collectOids(child, oids));
+        } else if (primitive instanceof ASN1TaggedObject tagged) {
+            collectOids(tagged.getBaseObject(), oids);
+        } else if (primitive instanceof ASN1OctetString octets && octets.getOctets().length > 0
+                && octets.getOctets()[0] == 0x30) {
+            try {
+                collectOids(ASN1Primitive.fromByteArray(octets.getOctets()), oids);
+            } catch (Exception | StackOverflowError notDer) {
+                // Bukan DER (mis. nilai hash): abaikan.
+            }
         }
     }
 }

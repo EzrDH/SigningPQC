@@ -133,4 +133,21 @@ class PadesTimestampTest {
             assertTrue(report.message().contains("telah diubah"), report.message());
         }
     }
+
+    /** Eksperimen T-011: nama /Filter dan /SubFilter ML-DSA bisa diganti; CMS tetap sah bagi verifier kita. */
+    @Test
+    void namaHandlerEksperimenTercatatDanCmsTetapSah() throws Exception {
+        byte[] pdf = SamplePdf.create("Surat Uji Eksperimen", "Kamus tanda tangan dengan handler lain.");
+        byte[] signed = new PadesSigner().signInvisible(pdf, pair.rsa(), SignatureDetails.of(IDENTITY.commonName(), "RSA"));
+        signed = new PadesSigner().withDictionaryNames("SigningPQC.PQC", "SigningPQC.CAdES.MLDSA")
+                .signInvisible(signed, pair.mlDsa(), SignatureDetails.of(IDENTITY.commonName(), "ML-DSA"));
+        List<SignatureReport> reports = new PdfSignatureVerifier().verify(signed);
+        assertEquals("ETSI.CAdES.detached", reports.get(0).subFilter());
+        assertEquals("SigningPQC.CAdES.MLDSA", reports.get(1).subFilter());
+        assertTrue(reports.get(1).valid(), reports.get(1).message());
+        try (var document = org.apache.pdfbox.Loader.loadPDF(signed)) {
+            assertEquals("SigningPQC.PQC", document.getSignatureDictionaries().get(1).getFilter());
+        }
+        assertThrows(IllegalArgumentException.class, () -> new PadesSigner().withDictionaryNames(" ", "x"));
+    }
 }

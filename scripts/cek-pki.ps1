@@ -44,7 +44,7 @@ try {
             openssl ts -verify -in "$k-ts.tsr" -data 02-hybrid-ca.pdf -CAfile "$k-root.pem" -untrusted "$k-intermediate.pem" 2>&1 | Out-Null
             Catat "$k openssl ts -verify (PKCS7 belum dukung ML-DSA)" $false $LASTEXITCODE
             openssl ts -reply -in "$k-ts.tsr" -token_out -out "$k-ts.tst" 2>&1 | Out-Null
-            openssl cms -verify -inform DER -in "$k-ts.tst" -CAfile "$k-root.pem" -certfile "$k-intermediate.pem" -purpose any -out "$k-tstinfo.der" 2>&1 | ForEach-Object { "$_" } | Out-Host
+            openssl cms -verify -binary -inform DER -in "$k-ts.tst" -CAfile "$k-root.pem" -certfile "$k-intermediate.pem" -purpose any -out "$k-tstinfo.der" 2>&1 | ForEach-Object { "$_" } | Out-Host
             Catat "$k token timestamp lewat openssl cms + rantai" $true $LASTEXITCODE
             $imprint = (openssl asn1parse -inform DER -in "$k-tstinfo.der" | Select-String "OCTET STRING" | Select-Object -First 1).ToString().Split(":")[-1].Trim()
             Write-Host "Imprint token : $imprint"
@@ -76,7 +76,7 @@ try {
     }
     openssl ts -verify -token_in -in bt1-ts.tst -data bt1-ts-data.bin -CAfile rsa-root.pem -untrusted rsa-intermediate.pem 2>&1 | ForEach-Object { "$_" } | Out-Host
     Catat "B-T timestamp RSA atas nilai tanda tangan" $true $LASTEXITCODE
-    openssl cms -verify -inform DER -in bt2-ts.tst -CAfile mldsa-root.pem -certfile mldsa-intermediate.pem -purpose any -out bt2-tstinfo.der 2>&1 | ForEach-Object { "$_" } | Out-Host
+    openssl cms -verify -binary -inform DER -in bt2-ts.tst -CAfile mldsa-root.pem -certfile mldsa-intermediate.pem -purpose any -out bt2-tstinfo.der 2>&1 | ForEach-Object { "$_" } | Out-Host
     Catat "B-T token timestamp ML-DSA lewat openssl cms + rantai" $true $LASTEXITCODE
     $imprint = (openssl asn1parse -inform DER -in bt2-tstinfo.der | Select-String "OCTET STRING" | Select-Object -First 1).ToString().Split(":")[-1].Trim()
     $hashSig = (Get-FileHash -Algorithm SHA512 bt2-ts-data.bin).Hash
