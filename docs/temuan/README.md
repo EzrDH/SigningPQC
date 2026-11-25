@@ -21,6 +21,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-006 | 25 Nov 2026 | Pengujian dan temuan kompatibilitas | TSA lokal RFC 3161 dan keterbatasan `openssl ts` untuk ML-DSA | Lulus, keterbatasan tercatat |
 | T-007 | 25 Nov 2026 | Pengujian | PAdES B-T: signature timestamp pada tanda tangan hybrid | Lulus |
 | T-008 | 25 Nov 2026 | Pengujian | Tanda tangan RSA visible dan ML-DSA invisible | Lulus |
+| T-009 | 25 Nov 2026 | Pengujian | Uji vektor NIST ACVP untuk ML-DSA (615 kasus, 39 grup) | Lulus |
 
 ## Templat
 
