@@ -11,6 +11,7 @@ desktop/dist/
 
 # Keluaran uji dan kunci uji (jangan di-commit)
 **/spike-output/
+**/pki-output/
 output/
 *.p12
 *.pfx

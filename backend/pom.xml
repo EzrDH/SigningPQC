@@ -13,6 +13,7 @@
 
   <modules>
     <module>signer-core</module>
+    <module>pki-test</module>
     <module>app-server</module>
   </modules>
 
@@ -58,6 +59,11 @@
       <dependency>
         <groupId>id.pkl.signingpqc</groupId>
         <artifactId>signer-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>id.pkl.signingpqc</groupId>
+        <artifactId>pki-test</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>

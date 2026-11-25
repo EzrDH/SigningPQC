@@ -119,7 +119,7 @@ public final class PdfSignatureVerifier {
      * /Contents diisi nol sampai ukuran cadangan. Hanya objek DER pertama (CMS) yang diambil,
      * sehingga byte nol yang sah di akhir tanda tangan tidak ikut terbuang.
      */
-    static byte[] firstDerObject(byte[] contents) throws IOException {
+    public static byte[] firstDerObject(byte[] contents) throws IOException {
         try (ASN1InputStream in = new ASN1InputStream(contents)) {
             return in.readObject().getEncoded(ASN1Encoding.DER);
         }

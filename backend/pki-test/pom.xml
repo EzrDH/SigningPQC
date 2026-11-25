@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>id.pkl.signingpqc</groupId>
+    <artifactId>signingpqc-backend</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>pki-test</artifactId>
+  <name>SigningPQC PKI Uji</name>
+  <description>Hierarki CA uji RSA dan ML-DSA, sertifikat penanda tangan dan TSA, CRL, PKCS#12</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>id.pkl.signingpqc</groupId>
+      <artifactId>signer-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <!-- Membuat PKI uji ke backend/pki-output: mvnw -pl pki-test -am compile exec:java -->
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.7.0</version>
+        <configuration>
+          <mainClass>id.pkl.signingpqc.pki.PkiDemoMain</mainClass>
+          <arguments>
+            <argument>${maven.multiModuleProjectDirectory}/pki-output</argument>
+          </arguments>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

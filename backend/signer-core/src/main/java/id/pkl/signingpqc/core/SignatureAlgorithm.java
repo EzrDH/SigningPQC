@@ -54,4 +54,35 @@ public enum SignatureAlgorithm {
     public boolean isPostQuantum() {
         return keyAlgorithm.startsWith("ML-DSA");
     }
+
+    /**
+     * Menentukan algoritma dari kunci publik sertifikat (OID SubjectPublicKeyInfo dan panjang modulus RSA).
+     *
+     * @throws IllegalArgumentException bila algoritma kunci tidak didukung
+     */
+    public static SignatureAlgorithm fromCertificate(java.security.cert.X509Certificate certificate) {
+        java.security.PublicKey key = certificate.getPublicKey();
+        if (key instanceof java.security.interfaces.RSAPublicKey rsa) {
+            int bits = rsa.getModulus().bitLength();
+            if (bits == 3072) {
+                return RSA_3072;
+            }
+            if (bits == 4096) {
+                return RSA_4096;
+            }
+            throw new IllegalArgumentException("Panjang kunci RSA tidak didukung: " + bits);
+        }
+        org.bouncycastle.asn1.ASN1ObjectIdentifier oid = org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
+                .getInstance(key.getEncoded()).getAlgorithm().getAlgorithm();
+        if (NISTObjectIdentifiers.id_ml_dsa_44.equals(oid)) {
+            return ML_DSA_44;
+        }
+        if (NISTObjectIdentifiers.id_ml_dsa_65.equals(oid)) {
+            return ML_DSA_65;
+        }
+        if (NISTObjectIdentifiers.id_ml_dsa_87.equals(oid)) {
+            return ML_DSA_87;
+        }
+        throw new IllegalArgumentException("Algoritma kunci tidak didukung: " + oid);
+    }
 }

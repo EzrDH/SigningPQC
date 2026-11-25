@@ -12,7 +12,7 @@ seluruh dokumen. Format mengikuti PAdES (ETSI EN 319 142), CMS (RFC 5652, RFC 98
 |---|---|
 | `docs/` | PRD, dokumen kebutuhan, jadwal sprint |
 | `docs/temuan/` | Catatan temuan dan hasil pengujian (T-001, T-002, ...) |
-| `backend/` | Java 25 LTS, Maven multi-modul: `signer-core` (Bouncy Castle 1.87, PDFBox 3.0.8), `app-server` (Spring Boot 4.2, REST lokal) |
+| `backend/` | Java 25 LTS, Maven multi-modul: `signer-core` (Bouncy Castle 1.87, PDFBox 3.0.8), `pki-test` (CA uji RSA dan ML-DSA, CRL, PKCS#12), `app-server` (Spring Boot 4.2, REST lokal) |
 | `frontend/` | Vue 3 + Vite + TypeScript |
 | `scripts/` | Skrip bantu (uji silang OpenSSL) |
 
@@ -44,6 +44,21 @@ cd ..
 powershell -ExecutionPolicy Bypass -File scripts\cek-openssl.ps1
 ```
 
+## PKI uji (Sprint 1)
+
+`PkiDemoMain` membuat dua hierarki CA uji (RSA: Root RSA-4096, CA antara RSA-3072; ML-DSA: Root ML-DSA-87,
+CA antara ML-DSA-65), pasangan sertifikat penanda tangan RSA + ML-DSA dengan identitas yang sama, sertifikat TSA,
+satu sertifikat yang dicabut, CRL, berkas PKCS#12, dan PDF hybrid `02-hybrid-ca.pdf` ke `backend/pki-output/`.
+Kata sandi PKCS#12 uji: `uji-signingpqc` (hanya lingkungan uji; folder keluaran tidak di-commit).
+
+```powershell
+cd backend
+.\mvnw.cmd -B -q -DskipTests install
+.\mvnw.cmd -B -q -pl pki-test exec:java
+cd ..
+powershell -ExecutionPolicy Bypass -File scripts\cek-pki.ps1
+```
+
 ## Status
 
-Sprint 0 (25 sampai 27 Nov 2026): kerangka proyek dan bukti tanda tangan ML-DSA di PDF. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
+Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 berjalan: PKI uji selesai, berikutnya TSA uji RFC 3161. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
