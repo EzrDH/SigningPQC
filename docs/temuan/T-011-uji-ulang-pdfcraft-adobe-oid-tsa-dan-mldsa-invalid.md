@@ -22,9 +22,8 @@ tanpa `-binary` mengubah byte 0x0A menjadi 0x0D 0x0A, yang baru muncul setelah O
 1. Buka `00-asli-ttd.pdf` dan `04-hybrid-visible-bt.pdf` di PdfCraft dan Adobe Acrobat Reader, lalu buka panel
    tanda tangan. Di Adobe, klik "Validate all signatures".
 2. Perbaikan OID: ganti `LocalTsa.TEST_POLICY`, tambah uji regresi, lalu `.\mvnw.cmd -B clean install`.
-3. Buat ulang PDF demo ke folder baru (berkas lama sedang terbuka di Adobe):
-   `java -cp <classpath> id.pkl.signingpqc.pki.PkiDemoMain pki-output\uji-ulang-T011`.
-4. `scripts\cek-pki.ps1 -Folder backend\pki-output\uji-ulang-T011`.
+3. Tutup PDF lama di Adobe, lalu buat ulang PDF demo: `.\mvnw.cmd -B -q -pl pki-test exec:java`.
+4. `scripts\cek-pki.ps1`.
 
 ## Hasil
 
@@ -93,7 +92,7 @@ salah satunya membuat Adobe menampilkan "unknown", perlu keputusan apakah kepatu
 boleh dikorbankan demi tampilan di Adobe.
 
 ## Tindak lanjut
-- Pengguna membuka ulang `backend\pki-output\uji-ulang-T011\04-hybrid-visible-bt.pdf`, `05a-...` dan `05b-...` di
+- Pengguna membuka ulang `backend\pki-output\04-hybrid-visible-bt.pdf`, `05a-...` dan `05b-...` di
   PdfCraft dan Adobe. Yang diharapkan: PdfCraft tidak lagi menampilkan "OID arc too large". Hasil Adobe untuk 05a
   dan 05b dicatat di sini.
 - Opsional: tambahkan `rsa-root.pem` ke sertifikat tepercaya Adobe (Edit > Preferences > Signatures > Identities &
