@@ -31,4 +31,23 @@ public record AlgorithmPolicy(Map<String, Instant> unsafeFrom) {
     public Optional<Instant> unsafeFrom(SignatureAlgorithm algorithm) {
         return Optional.ofNullable(unsafeFrom.get(family(algorithm)));
     }
+
+    /** Keluarga dari nama algoritma tampilan, misalnya "RSA (SHA-256)" menjadi "RSA", "ML-DSA-65" menjadi "ML-DSA". */
+    public static String familyOf(String algorithmName) {
+        if (algorithmName == null) {
+            return "-";
+        }
+        if (algorithmName.startsWith("ML-DSA")) {
+            return "ML-DSA";
+        }
+        if (algorithmName.startsWith("RSA")) {
+            return "RSA";
+        }
+        return algorithmName;
+    }
+
+    /** Batas aman untuk nama algoritma tampilan (lihat {@link #familyOf(String)}). */
+    public Optional<Instant> unsafeFromName(String algorithmName) {
+        return Optional.ofNullable(unsafeFrom.get(familyOf(algorithmName)));
+    }
 }
