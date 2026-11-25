@@ -83,6 +83,25 @@ try {
     Write-Host "Imprint token ML-DSA      : $imprint"
     Write-Host "SHA-512 nilai tanda tangan: $hashSig"
     Catat "B-T imprint ML-DSA = SHA-512 nilai tanda tangan" $true $(if ($imprint -eq $hashSig) { 0 } else { 1 })
+
+    Write-Host "`n=== PAdES B-LTA di 07-hybrid-pembaruan-pqc.pdf (document timestamp lapisan 4-6) ==="
+    # lta1 = TSA RSA G1, lta2 = TSA RSA G2 (pembaruan), lta3 = TSA ML-DSA (pembaruan pasca-kuantum).
+    foreach ($i in 1, 2) {
+        openssl ts -reply -token_in -in "lta$i.tst" -text 2>&1 | ForEach-Object { "$_" } | Select-String "Hash Algorithm|Time stamp:|TSA:" | Out-Host
+        openssl ts -verify -token_in -in "lta$i.tst" -data "lta$i-isi.bin" -CAfile lt-rsa-root.pem -untrusted lt-rsa-intermediate.pem 2>&1 | ForEach-Object { "$_" } | Out-Host
+        Catat "LTA document timestamp RSA $i atas revisi PDF" $true $LASTEXITCODE
+    }
+    openssl ts -verify -token_in -in lta1.tst -data lta2-isi.bin -CAfile lt-rsa-root.pem -untrusted lt-rsa-intermediate.pem 2>&1 | Out-Null
+    Catat "LTA timestamp RSA 1 vs revisi lain" $false $LASTEXITCODE
+    openssl cms -verify -binary -inform DER -in lta3.tst -CAfile lt-mldsa-root.pem -certfile lt-mldsa-intermediate.pem -purpose any -out lta3-tstinfo.der 2>&1 | ForEach-Object { "$_" } | Out-Host
+    Catat "LTA token ML-DSA lewat openssl cms + rantai" $true $LASTEXITCODE
+    $imprint = (openssl asn1parse -inform DER -in lta3-tstinfo.der | Select-String "OCTET STRING" | Select-Object -First 1).ToString().Split(":")[-1].Trim()
+    $hashRev = (Get-FileHash -Algorithm SHA512 lta3-isi.bin).Hash
+    Write-Host "Imprint token ML-DSA : $imprint"
+    Write-Host "SHA-512 revisi PDF   : $hashRev"
+    Catat "LTA imprint ML-DSA = SHA-512 revisi PDF" $true $(if ($imprint -eq $hashRev) { 0 } else { 1 })
+    $hashLain = (Get-FileHash -Algorithm SHA512 lta2-isi.bin).Hash
+    Catat "LTA imprint ML-DSA = SHA-512 revisi lain" $false $(if ($imprint -eq $hashLain) { 0 } else { 1 })
 } finally {
     Pop-Location
 }

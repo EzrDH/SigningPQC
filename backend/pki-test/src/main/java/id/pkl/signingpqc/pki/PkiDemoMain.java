@@ -3,7 +3,12 @@ package id.pkl.signingpqc.pki;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.cert.X509CRL;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -17,6 +22,13 @@ import id.pkl.signingpqc.core.SamplePdf;
 import id.pkl.signingpqc.core.SignatureDetails;
 import id.pkl.signingpqc.core.SignatureReport;
 import id.pkl.signingpqc.core.SigningCredential;
+import id.pkl.signingpqc.core.ltv.DssReader;
+import id.pkl.signingpqc.core.ltv.LtvService;
+import id.pkl.signingpqc.core.ltv.TimestampProfile;
+import id.pkl.signingpqc.core.validation.AlgorithmPolicy;
+import id.pkl.signingpqc.core.validation.DocumentValidator;
+import id.pkl.signingpqc.core.validation.LayerReport;
+import id.pkl.signingpqc.core.validation.ValidationReport;
 
 /**
  * Membuat PKI uji lengkap ke sebuah folder agar bisa diperiksa silang dengan OpenSSL 3.5
@@ -163,6 +175,83 @@ public final class PkiDemoMain {
             System.out.printf("Visible [%d] %-10s level=%s sah=%s%n", report.order(), report.signatureAlgorithm(),
                     report.padesLevel(), report.valid());
         }
+        longTermLayers(out, factory, identity, pdf, position);
         System.out.println("Keluaran PKI uji: " + out.toAbsolutePath());
+    }
+
+    /**
+     * Sprint 2, lapisan jangka panjang sesuai papan tulis pembimbing: 05 = B-LT (lapisan 1-3), 06 = B-LTA dengan
+     * TSA RSA generasi 1 (lapisan 4), 07 = pembaruan TSA RSA generasi 2 lalu TSA ML-DSA (lapisan 5-6, skenario TC-06).
+     * Token document timestamp di 07 disimpan sebagai lta1..lta3 untuk diperiksa silang dengan OpenSSL.
+     */
+    private static void longTermLayers(Path out, TestPkiFactory factory, SignerIdentity identity, byte[] pdf,
+            id.pkl.signingpqc.core.VisibleSignature position) throws Exception {
+        LongTermPki lt = LongTermPki.create(factory, identity);
+        List<CertificateAuthority> cas = List.of(lt.rsa().root(), lt.rsa().intermediate(), lt.mlDsa().root(),
+                lt.mlDsa().intermediate());
+        Instant now = Instant.now();
+        Instant gen1End = lt.tsaRsaGen1().certificate().getNotAfter().toInstant();
+        Instant renewal = gen1End.minus(Duration.ofDays(10));
+        Instant pqc = Instant.parse("2034-06-01T00:00:00Z");
+
+        PadesSigner signer = new PadesSigner();
+        SignatureDetails details = SignatureDetails.of(identity.commonName(), "Persetujuan dokumen");
+        byte[] bt = signer.signVisible(pdf, lt.signer().rsa(), details, position, client(lt.tsaRsaGen1(), now));
+        bt = signer.signInvisible(bt, lt.signer().mlDsa(), details, client(lt.tsaMlDsa(), now));
+        byte[] ltPdf = LtvService.addValidationData(bt, source(cas, factory, now));
+        Files.write(out.resolve("05-hybrid-lt.pdf"), ltPdf);
+        byte[] lta = LtvService.addDocumentTimestamp(ltPdf, client(lt.tsaRsaGen1(), now), TimestampProfile.RSA);
+        Files.write(out.resolve("06-hybrid-lta.pdf"), lta);
+        byte[] renewed = LtvService.renew(lta, source(cas, factory, renewal), client(lt.tsaRsaGen2(), renewal),
+                TimestampProfile.RSA);
+        renewed = LtvService.renew(renewed, source(cas, factory, pqc), client(lt.tsaMlDsa(), pqc),
+                TimestampProfile.ML_DSA);
+        Files.write(out.resolve("07-hybrid-pembaruan-pqc.pdf"), renewed);
+
+        Files.writeString(out.resolve("lt-rsa-root.pem"), Pem.certificate(lt.rsa().root().certificate()));
+        Files.writeString(out.resolve("lt-rsa-intermediate.pem"), Pem.certificate(lt.rsa().intermediate().certificate()));
+        Files.writeString(out.resolve("lt-mldsa-root.pem"), Pem.certificate(lt.mlDsa().root().certificate()));
+        Files.writeString(out.resolve("lt-mldsa-intermediate.pem"),
+                Pem.certificate(lt.mlDsa().intermediate().certificate()));
+        try (PDDocument document = Loader.loadPDF(renewed)) {
+            int index = 0;
+            for (PDSignature signature : document.getSignatureDictionaries()) {
+                if (!DssReader.ETSI_RFC3161.equals(signature.getSubFilter())) {
+                    continue;
+                }
+                index++;
+                Files.write(out.resolve("lta" + index + ".tst"),
+                        PdfSignatureVerifier.firstDerObject(signature.getContents(renewed)));
+                Files.write(out.resolve("lta" + index + "-isi.bin"), signature.getSignedContent(renewed));
+            }
+        }
+
+        DocumentValidator validator = new DocumentValidator(
+                Set.of(lt.rsa().root().certificate(), lt.mlDsa().root().certificate()), AlgorithmPolicy.defaults(),
+                Duration.ofDays(30));
+        print("06-hybrid-lta.pdf diperiksa sekarang", validator.validate(lta, now));
+        print("06-hybrid-lta.pdf tanpa pembaruan, setelah TSA G1 kedaluwarsa (TC-07)",
+                validator.validate(lta, gen1End.plus(Duration.ofDays(1))));
+        print("07-hybrid-pembaruan-pqc.pdf diperiksa pada 2040 (TC-06)",
+                validator.validate(renewed, Instant.parse("2040-01-01T00:00:00Z")));
+    }
+
+    private static id.pkl.signingpqc.core.TimestampClient client(SigningCredential tsa, Instant at) throws Exception {
+        return new id.pkl.signingpqc.core.TimestampClient(new LocalTsa(tsa, Clock.fixed(at, ZoneOffset.UTC)));
+    }
+
+    private static TestPkiRevocationSource source(List<CertificateAuthority> cas, TestPkiFactory factory, Instant at) {
+        return new TestPkiRevocationSource(cas, factory, Clock.fixed(at, ZoneOffset.UTC));
+    }
+
+    private static void print(String title, ValidationReport report) {
+        System.out.printf("%n%s%n  status=%s hybrid=%s perlindungan sampai %s (%s) perlu pembaruan=%s peringatan=%s%n",
+                title, report.status(), report.hybridComplete(), report.protectionUntil(),
+                report.protectionLimitReason(), report.renewalRecommended(), report.warnings());
+        for (LayerReport layer : report.layers()) {
+            System.out.printf("  rev %d %-18s %-4s %-14s dibuat %s dibuktikan %s -> %s %s%n", layer.revision(),
+                    layer.kind(), layer.pades(), layer.algorithm(), layer.time(), layer.provenAt(), layer.code(),
+                    layer.status());
+        }
     }
 }

@@ -17,9 +17,15 @@ import java.nio.file.Path;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
+import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.bouncycastle.tsp.TimeStampToken;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -81,7 +87,7 @@ class RestApiTest {
         JsonNode body = json.readTree(created.body());
         assertTrue(body.get("ready").asBoolean());
         assertEquals(4, body.get("cas").size());
-        assertEquals(2, body.get("tsas").size());
+        assertEquals(3, body.get("tsas").size());
 
         HttpResponse<String> again = postJson("/api/pki/setup", "{\"organization\":\"SigningPQC Uji\"}");
         assertEquals(409, again.statusCode());
@@ -212,7 +218,86 @@ class RestApiTest {
         assertEquals(400, postJson("/api/pki/signers", "{\"commonName\":\"\"}").statusCode());
     }
 
+    @Test
+    @Order(9)
+    void alurLengkapSampaiPqc() throws Exception {
+        HttpResponse<String> created = postJson("/api/pki/signers", "{\"commonName\":\"Sari Penanda Tangan LTV\"}");
+        assertEquals(201, created.statusCode(), created.body());
+        String id = json.readTree(created.body()).get("id").asString();
+
+        byte[] pdf = SamplePdf.create("Ijazah Uji REST", "Dokumen sintetis untuk uji lapisan LTV.");
+        HttpResponse<byte[]> signed = postMultipart("/api/sign", pdf, "ijazah.pdf",
+                List.of("signerId", id, "level", "B-LTA"));
+        assertEquals(200, signed.statusCode(), new String(signed.body(), StandardCharsets.UTF_8));
+
+        Instant gen1NotAfter = null;
+        for (JsonNode tsa : getJson("/api/pki").get("tsas")) {
+            if ("tsa-rsa-g1".equals(tsa.get("id").asString())) {
+                gen1NotAfter = instant(tsa.get("certificate").get("notAfter"));
+            }
+        }
+        assertTrue(gen1NotAfter != null, "TSA rsa-g1 harus ada");
+        Instant t1 = gen1NotAfter.minus(Duration.ofDays(10));
+
+        HttpResponse<byte[]> gen2 = postMultipart("/api/ltv/renew?tsa=rsa-g2&at=" + t1, signed.body(), "ijazah.pdf",
+                List.of());
+        assertEquals(200, gen2.statusCode(), new String(gen2.body(), StandardCharsets.UTF_8));
+        HttpResponse<byte[]> pqc = postMultipart("/api/ltv/renew?tsa=mldsa&at=2034-06-01T00:00:00Z", gen2.body(),
+                "ijazah.pdf", List.of());
+        assertEquals(200, pqc.statusCode(), new String(pqc.body(), StandardCharsets.UTF_8));
+
+        HttpResponse<byte[]> verified = postMultipart("/api/verify?at=2040-01-01T00:00:00Z", pqc.body(), "ijazah.pdf",
+                List.of());
+        assertEquals(200, verified.statusCode());
+        JsonNode validation = json.readTree(verified.body()).get("validation");
+        assertEquals("SAH", validation.get("status").asString(), validation.toString());
+        assertTrue(validation.get("layers").size() >= 6, validation.toString());
+    }
+
+    @Test
+    @Order(10)
+    void ltvMenolakBukanPdf() throws Exception {
+        for (String path : List.of("/api/ltv/validation-data", "/api/ltv/timestamp?tsa=rsa-g1",
+                "/api/ltv/renew?tsa=mldsa")) {
+            HttpResponse<byte[]> response = postMultipart(path, "bukan pdf".getBytes(), "x.txt", List.of());
+            assertEquals(400, response.statusCode(), path);
+            assertTrue(new String(response.body(), StandardCharsets.UTF_8).contains("bukan PDF"), path);
+        }
+        HttpResponse<byte[]> badTime = postMultipart("/api/ltv/timestamp?tsa=rsa-g1&at=kemarin",
+                SamplePdf.create("Uji", "x"), "x.pdf", List.of());
+        assertEquals(400, badTime.statusCode());
+        HttpResponse<byte[]> badTsa = postMultipart("/api/ltv/timestamp?tsa=dsa", SamplePdf.create("Uji", "x"),
+                "x.pdf", List.of());
+        assertEquals(404, badTsa.statusCode());
+    }
+
+    @Test
+    @Order(11)
+    void ltvMenolakPdfTerenkripsi() throws Exception {
+        byte[] encrypted;
+        try (PDDocument document = Loader.loadPDF(SamplePdf.create("Terkunci", "PDF terenkripsi uji"))) {
+            StandardProtectionPolicy policy = new StandardProtectionPolicy("pemilik-uji", "", new AccessPermission());
+            policy.setEncryptionKeyLength(128);
+            document.protect(policy);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            document.save(out);
+            encrypted = out.toByteArray();
+        }
+        for (String path : List.of("/api/ltv/validation-data", "/api/ltv/timestamp?tsa=rsa-g1")) {
+            HttpResponse<byte[]> response = postMultipart(path, encrypted, "terkunci.pdf", List.of());
+            assertEquals(400, response.statusCode(), path);
+            assertTrue(new String(response.body(), StandardCharsets.UTF_8).contains("terenkripsi"), path);
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------
+
+    private static Instant instant(JsonNode node) {
+        if (node.isNumber()) {
+            return Instant.ofEpochMilli(Math.round(node.asDouble() * 1000));
+        }
+        return Instant.parse(node.asString());
+    }
 
     private String base() {
         return "http://127.0.0.1:" + port;

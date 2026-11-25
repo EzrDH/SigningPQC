@@ -8,13 +8,16 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.bouncycastle.asn1.x509.CRLReason;
 import org.slf4j.Logger;
@@ -26,11 +29,14 @@ import id.pkl.signingpqc.core.Pem;
 import id.pkl.signingpqc.core.Pkcs12Credentials;
 import id.pkl.signingpqc.core.SigningCredential;
 import id.pkl.signingpqc.pki.CaHierarchy;
+import id.pkl.signingpqc.core.ltv.RevocationSource;
 import id.pkl.signingpqc.pki.CertificateAuthority;
+import id.pkl.signingpqc.pki.LongTermPki;
 import id.pkl.signingpqc.pki.PkiFamily;
 import id.pkl.signingpqc.pki.SignerIdentity;
 import id.pkl.signingpqc.pki.SignerPair;
 import id.pkl.signingpqc.pki.TestPkiFactory;
+import id.pkl.signingpqc.pki.TestPkiRevocationSource;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -43,6 +49,9 @@ public class PkiService {
 
     private static final Logger LOG = LoggerFactory.getLogger(PkiService.class);
     private static final String STATE_FILE = "state.json";
+
+    /** TSA uji profil jangka panjang: RSA generasi 1 (2 tahun), RSA generasi 2 (10 tahun), ML-DSA (20 tahun). */
+    public static final List<String> TSA_IDS = List.of("rsa-g1", "rsa-g2", "mldsa");
 
     /** Data yang disimpan di state.json (tanpa kunci; kunci ada di berkas .p12). */
     public record State(String organization, Instant createdAt, Map<String, Long> crlNumbers,
@@ -64,7 +73,7 @@ public class PkiService {
 
     private State state;
     private final Map<String, CertificateAuthority> cas = new LinkedHashMap<>();
-    private final Map<PkiFamily, SigningCredential> tsas = new EnumMap<>(PkiFamily.class);
+    private final Map<String, SigningCredential> tsas = new LinkedHashMap<>();
     private final Map<String, SignerPair> signers = new LinkedHashMap<>();
 
     public PkiService(@Value("${signingpqc.data-dir}") Path dataDir,
@@ -91,9 +100,58 @@ public class PkiService {
         return Map.copyOf(cas);
     }
 
+    /** TSA bawaan per keluarga untuk signature timestamp: RSA generasi 1 dan ML-DSA. */
     public synchronized SigningCredential tsa(PkiFamily family) {
+        return tsa(family == PkiFamily.RSA ? "rsa-g1" : "mldsa");
+    }
+
+    /** TSA berdasarkan id ({@link #TSA_IDS}); "rsa" berarti "rsa-g1". */
+    public synchronized SigningCredential tsa(String id) {
         requireReady();
-        return tsas.get(family);
+        String key = "rsa".equals(id) ? "rsa-g1" : id;
+        if (!TSA_IDS.contains(key)) {
+            throw ApiException.notFound("TSA '" + id + "' tidak dikenal (pakai " + String.join(", ", TSA_IDS) + ")");
+        }
+        SigningCredential credential = tsas.get(key);
+        if (credential == null) {
+            throw ApiException.conflict("PKI uji dibuat dengan profil lama tanpa TSA '" + key
+                    + "'. Buat ulang lewat POST /api/pki/setup?reset=true");
+        }
+        return credential;
+    }
+
+    /** Id TSA yang tersedia, berurutan. */
+    public synchronized List<String> tsaIds() {
+        return TSA_IDS.stream().filter(tsas::containsKey).toList();
+    }
+
+    /** Root kedua hierarki sebagai trust anchor validasi. */
+    public synchronized Set<X509Certificate> trustAnchors() {
+        requireReady();
+        return Set.of(cas.get(PkiFamily.RSA.slug() + "-root").certificate(),
+                cas.get(PkiFamily.ML_DSA.slug() + "-root").certificate());
+    }
+
+    /**
+     * Sumber rantai dan CRL untuk lapisan data validasi, dengan CRL bertanggal {@code at} (waktu simulasi atau
+     * sekarang). Pencabutan yang tercatat sampai {@code at} ikut dimasukkan.
+     */
+    public synchronized RevocationSource revocationSource(Instant at) {
+        requireReady();
+        TestPkiRevocationSource source = new TestPkiRevocationSource(cas.values(), factory, Clock.fixed(at, ZoneOffset.UTC));
+        for (Revocation revocation : state.revocations()) {
+            CertificateAuthority ca = cas.get(revocation.caId());
+            for (SignerPair pair : signers.values()) {
+                for (SigningCredential credential : List.of(pair.rsa(), pair.mlDsa())) {
+                    X509Certificate certificate = credential.certificate();
+                    if (ca != null && certificate.getSerialNumber().toString(16).equals(revocation.serialHex())
+                            && certificate.getIssuerX500Principal().equals(ca.certificate().getSubjectX500Principal())) {
+                        source.revoke(certificate, revocation.time());
+                    }
+                }
+            }
+        }
+        return source;
     }
 
     public synchronized SignerPair signer(String id) {
@@ -120,7 +178,7 @@ public class PkiService {
 
     // --------------------------------------------------------------------------------- perubahan
 
-    /** Membuat dua hierarki CA dan dua TSA. Bila sudah ada dan reset=false, ditolak (409). */
+    /** Membuat dua hierarki CA (profil jangka panjang) dan tiga TSA. Bila sudah ada dan reset=false, ditolak (409). */
     public synchronized State setup(String organization, boolean reset) throws GeneralSecurityException, IOException {
         if (ready() && !reset) {
             throw ApiException.conflict("PKI uji sudah dibuat. Pakai reset=true untuk membuat ulang (semua sertifikat lama hilang).");
@@ -139,17 +197,24 @@ public class PkiService {
             }
         }
         Map<String, Long> crlNumbers = new LinkedHashMap<>();
+        Map<PkiFamily, CaHierarchy> hierarchies = new EnumMap<>(PkiFamily.class);
         for (PkiFamily family : PkiFamily.values()) {
-            CaHierarchy hierarchy = factory.createHierarchy(family, organization.strip());
+            CaHierarchy hierarchy = factory.createHierarchy(family, organization.strip(), LongTermPki.ROOT_VALIDITY,
+                    LongTermPki.INTERMEDIATE_VALIDITY);
+            hierarchies.put(family, hierarchy);
             for (CertificateAuthority ca : List.of(hierarchy.root(), hierarchy.intermediate())) {
                 cas.put(ca.id(), ca);
                 crlNumbers.put(ca.id(), 0L);
                 writeCredential("ca/" + ca.id(), ca.credential());
             }
-            SigningCredential tsa = factory.issueTsa(hierarchy.intermediate(), "TSA Uji " + family.label(),
-                    TestPkiFactory.TSA_VALIDITY);
-            tsas.put(family, tsa);
-            writeCredential("tsa/" + family.slug(), tsa);
+        }
+        CertificateAuthority rsaIntermediate = hierarchies.get(PkiFamily.RSA).intermediate();
+        CertificateAuthority mlDsaIntermediate = hierarchies.get(PkiFamily.ML_DSA).intermediate();
+        tsas.put("rsa-g1", factory.issueTsa(rsaIntermediate, "TSA Uji RSA G1", LongTermPki.TSA_RSA_GEN1_VALIDITY));
+        tsas.put("rsa-g2", factory.issueTsa(rsaIntermediate, "TSA Uji RSA G2", LongTermPki.TSA_RSA_GEN2_VALIDITY));
+        tsas.put("mldsa", factory.issueTsa(mlDsaIntermediate, "TSA Uji ML-DSA", LongTermPki.TSA_ML_DSA_VALIDITY));
+        for (Map.Entry<String, SigningCredential> entry : tsas.entrySet()) {
+            writeCredential("tsa/" + entry.getKey(), entry.getValue());
         }
         state = new State(organization.strip(), Instant.now(), crlNumbers, List.of(), List.of());
         saveState();
@@ -244,7 +309,14 @@ public class PkiService {
                     String id = family.slug() + suffix;
                     cas.put(id, new CertificateAuthority(id, family, readCredential("ca/" + id)));
                 }
-                tsas.put(family, readCredential("tsa/" + family.slug()));
+            }
+            for (String id : TSA_IDS) {
+                // Profil lama (Sprint 1) menyimpan tsa/rsa dan tsa/mldsa; tsa/rsa dipakai sebagai generasi 1.
+                String file = Files.exists(dataDir.resolve("tsa/" + id + ".p12")) ? id
+                        : "rsa-g1".equals(id) ? "rsa" : id;
+                if (Files.exists(dataDir.resolve("tsa/" + file + ".p12"))) {
+                    tsas.put(id, readCredential("tsa/" + file));
+                }
             }
             for (SignerRecord record : loaded.signers()) {
                 SignerIdentity identity = new SignerIdentity(record.commonName(), record.title(), record.unit(),
