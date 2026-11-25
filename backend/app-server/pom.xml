@@ -23,6 +23,11 @@
       <artifactId>signer-core</artifactId>
     </dependency>
     <dependency>
+      <!-- CA uji dan TSA lokal (hanya lingkungan uji) -->
+      <groupId>id.pkl.signingpqc</groupId>
+      <artifactId>pki-test</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>

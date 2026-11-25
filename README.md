@@ -60,6 +60,28 @@ cd ..
 powershell -ExecutionPolicy Bypass -File scripts\cek-pki.ps1
 ```
 
+## REST lokal (Sprint 1)
+
+Backend menyediakan PKI uji, TSA RFC 3161, tanda tangan hybrid, dan verifikasi di `http://127.0.0.1:8085`.
+Data PKI uji (PKCS#12 berpassword dan `state.json`) disimpan di `%USERPROFILE%\SigningPQC-uji`.
+
+| Metode dan alamat | Fungsi |
+|---|---|
+| `GET /api/pki` | Status PKI uji, CA, TSA, dan penanda tangan |
+| `POST /api/pki/setup` `{"organization": "..."}` | Membuat CA RSA dan ML-DSA serta TSA (`?reset=true` untuk membuat ulang) |
+| `POST /api/pki/signers` `{"commonName", "title", "unit"}` | Menerbitkan pasangan sertifikat RSA + ML-DSA |
+| `POST /api/pki/signers/{id}/revoke` | Mencabut kedua sertifikat penanda tangan |
+| `GET /api/pki/crl/{caId}.crl`, `GET /api/pki/ca/{caId}.crt` | CRL dan sertifikat CA (`rsa-root`, `rsa-intermediate`, `mldsa-root`, `mldsa-intermediate`) |
+| `POST /api/tsa/rsa`, `POST /api/tsa/mldsa` | TSA RFC 3161 (`application/timestamp-query`) |
+| `POST /api/sign` (multipart: `file`, `signerId`, opsional `reason`, `location`, `page`, `x`, `y`, `width`, `height`, `timestamp`) | Tanda tangan hybrid: RSA visible lalu ML-DSA invisible, keduanya B-T |
+| `POST /api/verify` (multipart: `file`) | Hasil verifikasi setiap tanda tangan |
+
+Coba seluruh alur (backend harus berjalan):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\coba-rest.ps1 -Pdf "backend\spike-output\00-asli.pdf"
+```
+
 ## Status
 
-Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 berjalan: PKI uji, TSA lokal RFC 3161, PAdES B-T, dan tanda tangan RSA visible (`04-hybrid-visible-bt.pdf`) selesai, berikutnya REST tanda tangan dan uji vektor NIST ACVP. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
+Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 hampir selesai: PKI uji, TSA lokal RFC 3161, PAdES B-T, tanda tangan RSA visible, uji vektor NIST ACVP, dan REST lokal sudah jalan. Tinggal uji ulang di PdfCraft/Adobe. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.

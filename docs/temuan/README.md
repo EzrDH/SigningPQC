@@ -22,6 +22,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-007 | 25 Nov 2026 | Pengujian | PAdES B-T: signature timestamp pada tanda tangan hybrid | Lulus |
 | T-008 | 25 Nov 2026 | Pengujian | Tanda tangan RSA visible dan ML-DSA invisible | Lulus |
 | T-009 | 25 Nov 2026 | Pengujian | Uji vektor NIST ACVP untuk ML-DSA (615 kasus, 39 grup) | Lulus |
+| T-010 | 25 Nov 2026 | Pengujian | REST lokal untuk alur TTE hybrid dan waktu tanda tangan (rata-rata 24 ms) | Lulus |
 
 ## Templat
 

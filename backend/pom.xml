@@ -19,6 +19,8 @@
 
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
+    <!-- Nama parameter dibutuhkan Spring MVC untuk @RequestParam/@PathVariable tanpa nama eksplisit. -->
+    <maven.compiler.parameters>true</maven.compiler.parameters>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <bouncycastle.version>1.87</bouncycastle.version>
     <pdfbox.version>3.0.8</pdfbox.version>
