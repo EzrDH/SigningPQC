@@ -1,0 +1,66 @@
+/** Klien fetch untuk backend: token Bearer, galat JSON {"error": "..."} menjadi ApiError. */
+export class ApiError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+    this.name = 'ApiError'
+  }
+}
+
+interface ApiConfig {
+  getToken: () => string | null
+  onUnauthorized: () => void
+}
+
+let config: ApiConfig = { getToken: () => null, onUnauthorized: () => {} }
+
+export function configureApi(next: ApiConfig) {
+  config = next
+}
+
+async function request(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers)
+  const token = config.getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(path, { ...init, headers })
+  if (response.ok) return response
+  let message = `Terjadi kesalahan (${response.status})`
+  try {
+    const body = await response.json()
+    if (body && typeof body.error === 'string' && body.error) message = body.error
+  } catch {
+    // body bukan JSON
+  }
+  if (response.status === 401 && !path.startsWith('/api/auth/')) config.onUnauthorized()
+  throw new ApiError(response.status, message)
+}
+
+function json(method: string, body: unknown): RequestInit {
+  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+}
+
+export const api = {
+  async get<T>(path: string): Promise<T> {
+    return (await request(path)).json() as Promise<T>
+  },
+  async postJson<T>(path: string, body: unknown): Promise<T> {
+    const response = await request(path, json('POST', body))
+    return (response.status === 204 ? undefined : await response.json()) as T
+  },
+  async putJson<T>(path: string, body: unknown): Promise<T> {
+    return (await request(path, json('PUT', body))).json() as Promise<T>
+  },
+  /** Respons mentah, misalnya PDF beserta header X-Saved-Path. */
+  postForm(path: string, form: FormData): Promise<Response> {
+    return request(path, { method: 'POST', body: form })
+  },
+  async putForm<T>(path: string, form: FormData): Promise<T> {
+    return (await request(path, { method: 'PUT', body: form })).json() as Promise<T>
+  },
+  /** Respons mentah untuk GET berkas (misalnya gambar spesimen). */
+  raw(path: string): Promise<Response> {
+    return request(path)
+  },
+}
