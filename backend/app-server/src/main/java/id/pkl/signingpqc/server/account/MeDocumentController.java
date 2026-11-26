@@ -21,11 +21,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import id.pkl.signingpqc.core.VisibleSignature;
+import id.pkl.signingpqc.core.ltv.LtvService;
 import id.pkl.signingpqc.pki.SignerPair;
 import id.pkl.signingpqc.server.ApiException;
 import id.pkl.signingpqc.server.PkiService;
 import id.pkl.signingpqc.server.RequestInputs;
 import id.pkl.signingpqc.server.SigningService;
+import id.pkl.signingpqc.server.TsaService;
+import id.pkl.signingpqc.server.VerifyService;
 
 /** Dokumen milik pengguna yang sudah masuk: tanda tangan dengan konfirmasi dan penyimpanan otomatis. */
 @RestController
@@ -33,20 +36,26 @@ import id.pkl.signingpqc.server.SigningService;
 public class MeDocumentController {
 
     public static final String SAVED_PATH = "X-Saved-Path";
+    /** TSA dengan sisa masa berlaku terpanjang dan algoritma yang tetap aman (spesifikasi 6.8). */
+    static final String RENEW_TSA = "mldsa";
 
     private final AccountStore store;
     private final AccountService accounts;
     private final PkiService pki;
     private final SigningService signing;
     private final HistoryStore history;
+    private final VerifyService verifier;
+    private final TsaService tsa;
 
     public MeDocumentController(AccountStore store, AccountService accounts, PkiService pki, SigningService signing,
-            HistoryStore history) {
+            HistoryStore history, VerifyService verifier, TsaService tsa) {
         this.store = store;
         this.accounts = accounts;
         this.pki = pki;
         this.signing = signing;
         this.history = history;
+        this.verifier = verifier;
+        this.tsa = tsa;
     }
 
     @PostMapping(value = "/sign", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_PDF_VALUE)
@@ -74,6 +83,40 @@ public class MeDocumentController {
         history.add(accountId, new HistoryStore.Entry(saved.getFileName().toString(), "Ditandatangani", Instant.now(),
                 "SAH", saved.toString()));
         return pdf(signed, saved);
+    }
+
+    /** Verifikasi untuk pengguna: tanpa waktu simulasi, dicatat di riwayat. */
+    @PostMapping(value = "/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public VerifyService.VerifyResponse verify(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
+            @RequestPart("file") MultipartFile file) throws IOException {
+        VerifyService.VerifyResponse result = verifier.verify(RequestInputs.pdf(file), file.getOriginalFilename(), null);
+        String status = result.signatures().isEmpty() ? "TANPA_TANDA_TANGAN"
+                : result.validation() == null ? "TIDAK_DIPERIKSA" : result.validation().status().name();
+        history.add(accountId, new HistoryStore.Entry(displayName(file), "Diverifikasi", Instant.now(), status, null));
+        return result;
+    }
+
+    /** Perpanjangan keabsahan dengan TSA ML-DSA; hanya bila hasil verifikasi menyarankannya. */
+    @PostMapping(value = "/renew", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> renew(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
+            @RequestPart("file") MultipartFile file) throws IOException, GeneralSecurityException {
+        Account account = store.byId(accountId).orElseThrow(() -> ApiException.notFound("Akun tidak ditemukan"));
+        byte[] pdf = RequestInputs.pdf(file);
+        VerifyService.VerifyResponse result = verifier.verify(pdf, file.getOriginalFilename(), null);
+        if (result.validation() == null || !result.validation().renewalRecommended()) {
+            throw ApiException.conflict("Dokumen ini belum perlu atau sudah tidak bisa diperpanjang");
+        }
+        byte[] renewed = LtvService.renew(pdf, pki.revocationSource(Instant.now()), tsa.client(RENEW_TSA, null),
+                TsaService.profile(RENEW_TSA));
+        Path saved = OutputFolder.save(Path.of(account.outputDir()), file.getOriginalFilename(), "-diperpanjang", renewed);
+        history.add(accountId, new HistoryStore.Entry(saved.getFileName().toString(), "Diperpanjang", Instant.now(),
+                "SAH", saved.toString()));
+        return pdf(renewed, saved);
+    }
+
+    private static String displayName(MultipartFile file) {
+        String name = file.getOriginalFilename() == null ? "dokumen.pdf" : file.getOriginalFilename();
+        return name.substring(name.replace('\\', '/').lastIndexOf('/') + 1);
     }
 
     static ResponseEntity<byte[]> pdf(byte[] body, Path saved) {

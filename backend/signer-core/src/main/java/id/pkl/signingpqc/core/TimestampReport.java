@@ -6,6 +6,7 @@ import java.time.Instant;
 public record TimestampReport(
         Instant time,
         String tsaSubject,
+        String serialHex,
         String signatureAlgorithm,
         String imprintAlgorithm,
         boolean imprintMatches,

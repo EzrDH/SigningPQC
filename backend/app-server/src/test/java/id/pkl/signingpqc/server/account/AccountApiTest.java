@@ -440,4 +440,58 @@ class AccountApiTest {
         }
         assertEquals(423, sign(dina, pdf, "dina.pdf", "passphrase", PASSPHRASE).statusCode());
     }
+
+    // ------------------------------------------------------------------ Task 8: detail verifikasi dan perpanjangan
+
+    @Test
+    @Order(30)
+    void verifikasiDenganDetail() throws Exception {
+        int before = body(api().get("/api/me/history", token)).size();
+        byte[] signed = Files.readAllBytes(OUTPUT_DIR.resolve("surat-ttd.pdf"));
+        HttpResponse<byte[]> response = api().multipart("POST", "/api/me/verify", token, signed, "surat-ttd.pdf",
+                "application/pdf", java.util.List.of());
+        assertEquals(200, response.statusCode(), new String(response.body(), StandardCharsets.UTF_8));
+        JsonNode result = json.readTree(new String(response.body(), StandardCharsets.UTF_8));
+        assertEquals("SAH", result.get("validation").get("status").asString());
+        JsonNode rsa = result.get("signatures").get(0);
+        JsonNode detail = rsa.get("detail");
+        assertTrue(detail.get("certificate").get("subject").asString().contains("CN=budi.uji"), detail.toString());
+        assertTrue(detail.get("certificate").get("issuer").asString().contains("CA Antara"), detail.toString());
+        assertEquals("RSA 3072 bit", detail.get("certificate").get("keyAlgorithm").asString());
+        JsonNode chain = detail.get("chain");
+        assertEquals(3, chain.size(), chain.toString());
+        assertTrue(chain.get(2).get("trustedRoot").asBoolean());
+        assertFalse(chain.get(0).get("trustedRoot").asBoolean());
+        assertEquals("Tidak dicabut", detail.get("revocation").asString());
+        assertFalse(detail.get("coverage").asString().isBlank());
+        assertEquals("Seluruh dokumen saat ditandatangani",
+                result.get("signatures").get(1).get("detail").get("coverage").asString());
+        assertTrue(result.get("signatures").get(1).get("detail").get("certificate").get("keyAlgorithm").asString()
+                .startsWith("ML-DSA"));
+        assertFalse("-".equals(rsa.get("signatureTimestamp").get("serialHex").asString()));
+        JsonNode history = body(api().get("/api/me/history", token));
+        assertEquals(before + 1, history.size());
+        assertEquals("Diverifikasi", history.get(0).get("activity").asString());
+        assertEquals("SAH", history.get(0).get("status").asString());
+    }
+
+    @Test
+    @Order(31)
+    void verifyLamaTetapTerbuka() throws Exception {
+        int before = body(api().get("/api/me/history", token)).size();
+        JsonNode result = verifyOpen(Files.readAllBytes(OUTPUT_DIR.resolve("surat-ttd.pdf")));
+        assertTrue(result.get("signatures").get(0).has("detail"));
+        assertEquals(before, body(api().get("/api/me/history", token)).size());
+    }
+
+    @Test
+    @Order(32)
+    void perpanjangDitolakBilaBelumPerlu() throws Exception {
+        HttpResponse<byte[]> response = api().multipart("POST", "/api/me/renew", token,
+                Files.readAllBytes(OUTPUT_DIR.resolve("surat-ttd.pdf")), "surat-ttd.pdf", "application/pdf",
+                java.util.List.of());
+        assertEquals(409, response.statusCode());
+        assertTrue(new String(response.body(), StandardCharsets.UTF_8)
+                .contains("Dokumen ini belum perlu atau sudah tidak bisa diperpanjang"));
+    }
 }
