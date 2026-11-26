@@ -283,6 +283,23 @@ class AccountApiTest {
     }
 
     @Test
+    @Order(13)
+    void folderKeluaranDiDalamFolderDataDitolak() throws Exception {
+        Path inside = DATA_DIR.resolve("accounts").resolve("keluaran-baru");
+        Path traversal = OUTPUT_DIR.resolve("..").resolve(DATA_DIR.getFileName()).resolve("lain");
+        for (Path target : java.util.List.of(DATA_DIR, inside, traversal)) {
+            HttpResponse<String> response = api().putJson("/api/me/settings", token,
+                    "{\"outputDir\":" + json.writeValueAsString(target.toString()) + "}");
+            assertEquals(400, response.statusCode(), target.toString());
+            assertEquals("Folder keluaran tidak boleh berada di dalam folder data aplikasi",
+                    body(response).get("error").asString());
+        }
+        assertFalse(Files.exists(inside), "folder tidak dibuat");
+        assertFalse(Files.exists(DATA_DIR.resolve("lain")), "folder tidak dibuat");
+        assertEquals(OUTPUT_DIR.toString(), body(api().get("/api/me", token)).get("outputDir").asString());
+    }
+
+    @Test
     @Order(14)
     void spesimenPngDiterima() throws Exception {
         assertEquals(404, api().getBytes("/api/me/specimen", token).statusCode());
@@ -443,6 +460,23 @@ class AccountApiTest {
             assertEquals(401, sign(dina, pdf, "dina.pdf", "passphrase", "passphrase-salah-sekali").statusCode());
         }
         assertEquals(423, sign(dina, pdf, "dina.pdf", "passphrase", PASSPHRASE).statusCode());
+    }
+
+    @Test
+    @Order(28)
+    void loginBerhasilTidakMeresetHitunganKonfirmasi() throws Exception {
+        String eko = register(this, "eko.uji", "eko@contoh.go.id");
+        assertEquals(200, api().putJson("/api/me/settings", eko,
+                "{\"confirmMethod\":\"PASSPHRASE\",\"passphrase\":\"" + PASSPHRASE + "\"}").statusCode());
+        byte[] pdf = id.pkl.signingpqc.core.SamplePdf.create("Surat Eko", "Tebakan passphrase.");
+        for (int i = 0; i < 4; i++) {
+            assertEquals(401, sign(eko, pdf, "eko.pdf", "passphrase", "passphrase-salah-sekali").statusCode());
+        }
+        HttpResponse<String> relogin = login("eko.uji", PASSWORD);
+        assertEquals(200, relogin.statusCode(), relogin.body());
+        String fresh = body(relogin).get("token").asString();
+        assertEquals(401, sign(fresh, pdf, "eko.pdf", "passphrase", "passphrase-salah-sekali").statusCode());
+        assertEquals(423, sign(fresh, pdf, "eko.pdf", "passphrase", PASSPHRASE).statusCode());
     }
 
     // ------------------------------------------------------------------ Task 8: detail verifikasi dan perpanjangan

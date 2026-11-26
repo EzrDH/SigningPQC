@@ -58,8 +58,10 @@ public class MeController {
     private final AccountService accounts;
     private final PkiService pki;
     private final HistoryStore history;
+    private final Path dataDir;
 
     public MeController(AccountStore store, AccountService accounts, PkiService pki, HistoryStore history) {
+        this.dataDir = pki.dataDir();
         this.store = store;
         this.accounts = accounts;
         this.pki = pki;
@@ -155,8 +157,11 @@ public class MeController {
                 certificate.getNotBefore().toInstant(), certificate.getNotAfter().toInstant(), revoked);
     }
 
-    /** Path absolut yang bisa dibuat dan ditulisi; dikembalikan dalam bentuk normal. */
-    private static String usableFolder(String value) {
+    /**
+     * Path absolut yang bisa dibuat dan ditulisi, di luar folder data aplikasi (akun, kunci, PKI uji);
+     * dikembalikan dalam bentuk normal.
+     */
+    private String usableFolder(String value) {
         Path folder;
         try {
             folder = Path.of(value.strip());
@@ -166,13 +171,44 @@ public class MeController {
         if (!folder.isAbsolute()) {
             throw ApiException.badRequest("Folder harus berupa path lengkap, misalnya C:\\Users\\nama\\output-signing");
         }
+        if (insideDataDir(folder)) {
+            throw ApiException.badRequest("Folder keluaran tidak boleh berada di dalam folder data aplikasi");
+        }
         try {
             Files.createDirectories(folder);
+            if (insideDataDir(folder.toRealPath())) {
+                throw ApiException.badRequest("Folder keluaran tidak boleh berada di dalam folder data aplikasi");
+            }
             Path probe = Files.createTempFile(folder, ".uji-tulis", ".tmp");
             Files.delete(probe);
         } catch (IOException | SecurityException e) {
             throw ApiException.badRequest("Folder tidak bisa dipakai untuk menyimpan");
         }
         return folder.normalize().toString();
+    }
+
+    /**
+     * Membandingkan path nyata: bagian path yang sudah ada diselesaikan lewat {@code toRealPath} (tautan simbolik
+     * ikut diikuti), sisanya ditempel dalam bentuk normal.
+     */
+    private boolean insideDataDir(Path folder) {
+        Path data = realOrNormal(dataDir.toAbsolutePath());
+        return realOrNormal(folder.toAbsolutePath()).startsWith(data);
+    }
+
+    private static Path realOrNormal(Path path) {
+        Path normal = path.normalize();
+        Path existing = normal;
+        while (existing != null && !Files.exists(existing)) {
+            existing = existing.getParent();
+        }
+        if (existing == null) {
+            return normal;
+        }
+        try {
+            return existing.toRealPath().resolve(existing.relativize(normal));
+        } catch (IOException e) {
+            return normal;
+        }
     }
 }

@@ -134,10 +134,10 @@ public class AccountService {
         }
         guard.check(account.id());
         if (password == null || !Argon2id.verify(password, account.passwordHash())) {
-            guard.failed(account.id());
+            guard.failed(account.id(), LoginGuard.Factor.PASSWORD);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Username/email atau password salah");
         }
-        guard.succeeded(account.id());
+        guard.succeeded(account.id(), LoginGuard.Factor.PASSWORD);
         return new Session(sessions.create(account.id()), account);
     }
 
@@ -150,10 +150,10 @@ public class AccountService {
             }
             try {
                 SignerPair pair = vault.unlockWithPassphrase(account.id(), passphrase.toCharArray());
-                guard.succeeded(account.id());
+                guard.succeeded(account.id(), LoginGuard.Factor.CONFIRM);
                 return pair;
             } catch (ApiException e) {
-                guard.failed(account.id());
+                guard.failed(account.id(), LoginGuard.Factor.CONFIRM);
                 throw e;
             }
         }
@@ -168,11 +168,11 @@ public class AccountService {
             Arrays.fill(secret, (byte) 0);
         }
         if (step.isEmpty()) {
-            guard.failed(account.id());
+            guard.failed(account.id(), LoginGuard.Factor.CONFIRM);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Konfirmasi tidak cocok");
         }
         store.save(account.withLastTotpStep(step.getAsLong()));
-        guard.succeeded(account.id());
+        guard.succeeded(account.id(), LoginGuard.Factor.CONFIRM);
         return vault.unlockWithApp(account.id());
     }
 
@@ -193,10 +193,10 @@ public class AccountService {
                 vault.disableApp(account.id(), passphrase.toCharArray());
             }
         } catch (ApiException e) {
-            guard.failed(account.id());
+            guard.failed(account.id(), LoginGuard.Factor.CONFIRM);
             throw e;
         }
-        guard.succeeded(account.id());
+        guard.succeeded(account.id(), LoginGuard.Factor.CONFIRM);
         Account updated = account.withConfirmMethod(method);
         store.save(updated);
         return updated;

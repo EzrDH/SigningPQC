@@ -83,5 +83,8 @@ Review akhir seluruh cabang menemukan dua masalah lain yang masih terkait posisi
    - Perbaikan: `SignatureAppearance.rectangle` dan `placementOf` kini mengukur dari pojok kiri atas CropBox (`getCropBox()`, yang sudah dipotong ke MediaBox) dan memeriksa batas terhadap CropBox.
    - Uji: `VisibleSignatureTest.koordinatMengikutiCropBox` dan `PlacementTest.bawaanMengikutiCropBox`.
 
+## Uji ulang di laptop (JDK 25)
+Pada 26 November 2026 seluruh uji backend dijalankan ulang di laptop Windows dengan Eclipse Temurin 25.0.5.1+2 LTS. Hasilnya 141 uji lolos, termasuk uji rotasi 90/270, uji kotak di tepi halaman, dan uji CropBox di `VisibleSignatureTest` serta `PlacementTest`.
+
 ## Tindak lanjut
-Uji manual di Adobe Reader dengan satu PDF lanskap hasil pindai (rotasi 90) dilakukan pada tahap uji laptop.
+Uji manual di Adobe Acrobat Reader masih perlu dilakukan dengan satu PDF lanskap (rotasi 90) dan satu PDF tegak. Yang dicek: spesimen tampil tegak, posisinya sama dengan pratinjau, dan panel tanda tangan menampilkan dua tanda tangan. Sertakan tangkapan layarnya di catatan ini.

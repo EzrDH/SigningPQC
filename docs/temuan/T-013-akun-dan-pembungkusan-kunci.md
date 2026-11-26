@@ -6,7 +6,7 @@
 | Jenis | Pengujian |
 | Sprint | 3 (aplikasi pengguna) |
 | Kebutuhan terkait | Spesifikasi `docs/superpowers/specs/2026-11-26-aplikasi-pengguna-design.md` bagian 6 |
-| Lingkungan | Container Linux, 4 vCPU Intel Xeon 2.10 GHz, OpenJDK 21 (kompilasi `--release 21`, enforcer dilewati), Maven offline, Spring Boot 4.2, Bouncy Castle 1.87, PDFBox 3.0.8. Uji JDK 25 di laptop menyusul bersama uji frontend. |
+| Lingkungan | Container Linux, 4 vCPU Intel Xeon 2.10 GHz, OpenJDK 21 (kompilasi `--release 21`, enforcer dilewati), Maven offline, Spring Boot 4.2, Bouncy Castle 1.87, PDFBox 3.0.8. Uji JDK 25 di laptop: lihat bagian "Uji ulang di laptop". |
 | Versi kode | branch `aplikasi-pengguna`, commit `a625554` |
 | Status | Lulus (130 dari 130 uji JUnit) |
 
@@ -34,7 +34,7 @@ Sertifikat akun ditulis di `signers/<id>/rsa.pem` dan `mldsa.pem` agar pencabuta
 - AES-256-GCM dengan IV 12 byte acak dan tag 128 bit. AAD mengikat setiap blob ke akunnya (`keys:<id>`, `dek.app:<id>`, `totp:<id>`), jadi blob tidak bisa ditukar antarakun.
 - TOTP RFC 6238: HMAC-SHA1, 6 digit, 30 detik, jendela ±1 langkah. Langkah terakhir yang dipakai disimpan, sehingga kode yang sama tidak bisa dipakai dua kali.
 - Sesi: token 256-bit di memori, menganggur 30 menit, mutlak 8 jam.
-- Penguncian: 5 kegagalan berturut-turut (password, passphrase, atau TOTP) mengunci akun 5 menit (HTTP 423).
+- Penguncian: 5 kegagalan berturut-turut (password, passphrase, atau TOTP) mengunci akun 5 menit (HTTP 423). Sejak T-016, kegagalan password dan kegagalan konfirmasi (passphrase atau TOTP) dihitung terpisah, dan login yang berhasil tidak lagi mereset hitungan konfirmasi.
 
 ## Langkah
 1. `cd backend && mvn -o -q -Denforcer.skip=true -Dmaven.compiler.release=21 -pl app-server -am test`
@@ -60,6 +60,17 @@ Contoh hasil verifikasi pengguna atas dokumen dari aplikasi: status `SAH`, `hybr
 - **Cakupan ML-DSA.** B-LTA selalu menambah dua revisi (DSS dan document timestamp) sesudah tanda tangan ML-DSA, jadi PDFBox menganggapnya tidak menutup seluruh berkas. Aplikasi tetap menulis "Seluruh dokumen saat ditandatangani" selama validator tidak menemukan perubahan isi sesudahnya.
 - **Biaya Argon2id.** Sekitar 0,2 detik per hash dapat diterima untuk masuk dan tanda tangan, dan sekaligus memperlambat tebakan offline.
 
+## Uji ulang di laptop (JDK 25), 26 November 2026
+| Butir | Hasil |
+|---|---|
+| Lingkungan | Laptop Windows, Eclipse Temurin 25.0.5.1+2 LTS, Maven wrapper (`.\mvnw.cmd -B test`) |
+| Signer Core | 7 uji, 0 gagal |
+| PKI Uji | 70 uji, 0 gagal |
+| App Server | 64 uji, 0 gagal |
+| Total | 141 uji, 0 gagal, 0 error, 0 dilewati. BUILD SUCCESS, log tanpa baris `[WARNING]` atau `[ERROR]` |
+
+Hasilnya sama dengan uji di container (JDK 21), jadi perilaku akun dan pembungkusan kunci tidak bergantung pada versi JDK.
+
 ## Keterbatasan
 1. Mode TOTP tidak melindungi dari pencurian seluruh folder data beserta `app.key`, karena `dek.app` dibuka dengan kunci aplikasi. Mode Passphrase melindungi dari keduanya.
 2. Endpoint pengembang (`/api/pki/**`, `/api/ltv/**`, `/api/tsa/**`, `/api/sign`, `/api/verify`) tetap terbuka tanpa login di 127.0.0.1, sesuai keputusan desain.
@@ -69,5 +80,5 @@ Contoh hasil verifikasi pengguna atas dokumen dari aplikasi: status `SAH`, `hybr
 6. Java tidak bisa menjamin rahasia terhapus dari memori: `String` password dan passphrase dari JSON tetap ada sampai dibersihkan GC. Array byte DEK, KEK, dan PKCS#12 dikosongkan sesudah dipakai.
 
 ## Tindak lanjut
-- Uji ulang dengan JDK 25 di laptop bersama uji frontend (T-014).
+- ~~Uji ulang dengan JDK 25 di laptop~~ selesai 26 November 2026, 141/141 lolos.
 - Frontend Vue memakai endpoint `/api/auth/**` dan `/api/me/**` (Task 10 sampai 15).

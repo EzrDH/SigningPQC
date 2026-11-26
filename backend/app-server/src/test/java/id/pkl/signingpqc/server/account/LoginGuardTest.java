@@ -22,10 +22,10 @@ class LoginGuardTest {
     void kunciSetelahLimaGagalSelamaLimaMenit() {
         LoginGuard guard = new LoginGuard(clock);
         for (int i = 0; i < 4; i++) {
-            guard.failed("a1");
+            guard.failed("a1", LoginGuard.Factor.PASSWORD);
         }
         assertDoesNotThrow(() -> guard.check("a1"));
-        guard.failed("a1");
+        guard.failed("a1", LoginGuard.Factor.PASSWORD);
         ApiException e = assertThrows(ApiException.class, () -> guard.check("a1"));
         assertEquals(HttpStatus.LOCKED, e.status());
         assertEquals("Terlalu banyak percobaan. Coba lagi dalam 5 menit.", e.getMessage());
@@ -35,13 +35,35 @@ class LoginGuardTest {
     }
 
     @Test
-    void berhasilMengosongkanHitungan() {
+    void berhasilMengosongkanHitunganFaktorYangSama() {
         LoginGuard guard = new LoginGuard(clock);
         for (int i = 0; i < 4; i++) {
-            guard.failed("a1");
+            guard.failed("a1", LoginGuard.Factor.CONFIRM);
         }
-        guard.succeeded("a1");
-        guard.failed("a1");
+        guard.succeeded("a1", LoginGuard.Factor.CONFIRM);
+        guard.failed("a1", LoginGuard.Factor.CONFIRM);
+        assertDoesNotThrow(() -> guard.check("a1"));
+    }
+
+    @Test
+    void loginBerhasilTidakMengosongkanHitunganKonfirmasi() {
+        LoginGuard guard = new LoginGuard(clock);
+        for (int i = 0; i < 4; i++) {
+            guard.failed("a1", LoginGuard.Factor.CONFIRM);
+        }
+        guard.succeeded("a1", LoginGuard.Factor.PASSWORD);
+        guard.failed("a1", LoginGuard.Factor.CONFIRM);
+        ApiException e = assertThrows(ApiException.class, () -> guard.check("a1"));
+        assertEquals(HttpStatus.LOCKED, e.status());
+    }
+
+    @Test
+    void hitunganTiapFaktorTerpisah() {
+        LoginGuard guard = new LoginGuard(clock);
+        for (int i = 0; i < 4; i++) {
+            guard.failed("a1", LoginGuard.Factor.PASSWORD);
+            guard.failed("a1", LoginGuard.Factor.CONFIRM);
+        }
         assertDoesNotThrow(() -> guard.check("a1"));
     }
 

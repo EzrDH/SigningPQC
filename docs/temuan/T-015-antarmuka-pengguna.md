@@ -107,10 +107,26 @@ Aturan `.viewer` dan `.av` sempat hilang karena saringan kelas kerangka mockup i
 ## Keterbatasan
 - **Perpanjangan keabsahan belum diuji di browser.** Tombol hanya muncul bila `renewalRecommended`, yaitu bila masa keabsahan kurang dari 30 hari. Kondisi itu butuh simulasi waktu. Logika backend sudah diuji di `RenewApiTest`, dan logika tampilan diuji di `status.test.ts`.
 - **Pilih folder memakai isian path.** Versi web belum punya dialog pilih folder. Electron (Sprint 4) bisa memakai dialog folder sistem.
-- **Belum diuji di laptop.** Uji ini berjalan di container dengan JDK 21. Uji JDK 25 dan uji di laptop Windows menyusul.
+- **Uji di laptop baru sebatas uji otomatis.** Backend (JDK 25) dan frontend sudah lolos di laptop (lihat bagian di bawah). Aplikasi belum dicoba langsung lewat browser di Windows.
 - **Mode gelap tidak diuji.** Mode gelap tidak wajib menurut spesifikasi.
 
+## Uji ulang di laptop Windows, 26 November 2026
+| Butir | Hasil |
+|---|---|
+| Backend | Eclipse Temurin 25.0.5.1+2 LTS, `.\mvnw.cmd -B test`: 141 uji lolos (Signer Core 7, PKI Uji 70, App Server 64), BUILD SUCCESS |
+| Node / npm | node v24.22.1, npm 10.8.2 |
+| `npm ci` | Berhasil. npm melaporkan 5 kerentanan tingkat *moderate* pada dependensi. `npm audit fix` belum dijalankan. |
+| `npm test` | 7 berkas uji, 39/39 lolos |
+| `npm run build` | Berhasil, tanpa peringatan |
+
+### 5. Ikon bawaan Vite berbeda antara laptop dan container (diselesaikan)
+- **Gejala.** Saat memindahkan 18 commit ke laptop, patch "Frontend: kerangka, klien API, sesi, router, topbar" gagal dipasang pada `frontend/public/favicon.svg`, `frontend/src/assets/vite.svg`, dan `frontend/src/assets/vue.svg`.
+- **Penyebab.** Ketiga berkas bawaan Vite di laptop berbeda isinya dengan salinan di container. Kode aplikasi tidak terpengaruh.
+- **Penyelesaian.** Dengan persetujuan pengguna, patch dipasang tanpa ketiga berkas itu. Lalu commit "Frontend: ikon aplikasi, hapus aset bawaan Vite" menghapus `vite.svg` dan `vue.svg` dan menulis `favicon.svg` versi aplikasi (SHA-256 diawali `462b4d0f2692ee35`). `git grep` memastikan tidak ada lagi rujukan ke kedua berkas yang dihapus.
+
 ## Tindak lanjut
-- Review akhir seluruh cabang `aplikasi-pengguna`.
-- Uji JDK 25 di laptop (`.\mvnw.cmd -B test`) dan coba aplikasi langsung di Windows.
+- ~~Review akhir seluruh cabang `aplikasi-pengguna`~~ selesai, temuannya sudah diperbaiki.
+- ~~Uji JDK 25 di laptop~~ selesai, 141/141 lolos.
+- Coba aplikasi langsung lewat browser di Windows (`npm run dev` dan backend di 127.0.0.1:8085).
+- Tinjau 5 kerentanan *moderate* dari `npm audit` sebelum aplikasi dipakai di luar uji.
 - Cek tampilan spesimen di Adobe Acrobat Reader untuk halaman tegak dan berotasi (T-014), bersama tangkapan layar T-012.
