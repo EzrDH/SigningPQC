@@ -53,8 +53,11 @@ async function render() {
   const page = await doc.getPage(pageNumber.value)
   const rotation = normalize(page.rotate)
   const base = page.getViewport({ scale: 1, rotation })
-  const available = Math.min(box.clientWidth || base.width, props.maxWidth ?? 640)
-  const scale = available / base.width
+  // Pas lebar, tetapi seluruh halaman juga harus terlihat di jendela agar spesimen bisa diletakkan tanpa menggulir.
+  const availableWidth = Math.min(box.clientWidth || base.width, props.maxWidth ?? 720)
+  const top = box.getBoundingClientRect().top + window.scrollY
+  const availableHeight = Math.max(360, window.innerHeight - top - (pageCount.value > 1 ? 72 : 24))
+  const scale = Math.min(availableWidth / base.width, availableHeight / base.height)
   const viewport = page.getViewport({ scale, rotation })
   const ratio = window.devicePixelRatio || 1
   el.width = Math.floor(viewport.width * ratio)
