@@ -14,6 +14,8 @@ interface ApiConfig {
   onUnauthorized: () => void
 }
 
+export const SERVER_DOWN = 'Server belum berjalan atau tidak bisa dihubungi. Jalankan backend, lalu coba lagi.'
+
 let config: ApiConfig = { getToken: () => null, onUnauthorized: () => {} }
 
 export function configureApi(next: ApiConfig) {
@@ -24,9 +26,15 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
   const headers = new Headers(init.headers)
   const token = config.getToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const response = await fetch(path, { ...init, headers })
+  let response: Response
+  try {
+    response = await fetch(path, { ...init, headers })
+  } catch {
+    throw new ApiError(0, SERVER_DOWN)
+  }
   if (response.ok) return response
-  let message = `Terjadi kesalahan (${response.status})`
+  // 502/503/504 tanpa body JSON datang dari proxy (Vite atau lainnya) saat backend tidak berjalan.
+  let message = [502, 503, 504].includes(response.status) ? SERVER_DOWN : `Terjadi kesalahan (${response.status})`
   try {
     const body = await response.json()
     if (body && typeof body.error === 'string' && body.error) message = body.error

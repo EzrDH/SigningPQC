@@ -124,6 +124,12 @@ Aturan `.viewer` dan `.av` sempat hilang karena saringan kelas kerangka mockup i
 - **Penyebab.** Ketiga berkas bawaan Vite di laptop berbeda isinya dengan salinan di container. Kode aplikasi tidak terpengaruh.
 - **Penyelesaian.** Dengan persetujuan pengguna, patch dipasang tanpa ketiga berkas itu. Lalu commit "Frontend: ikon aplikasi, hapus aset bawaan Vite" menghapus `vite.svg` dan `vue.svg` dan menulis `favicon.svg` versi aplikasi (SHA-256 diawali `462b4d0f2692ee35`). `git grep` memastikan tidak ada lagi rujukan ke kedua berkas yang dihapus.
 
+### 6. Pesan "Terjadi kesalahan (502)" saat backend belum berjalan (diperbaiki)
+- **Gejala.** Pada uji manual pertama di laptop (26 November 2026), layar Daftar langkah 2 menampilkan "Terjadi kesalahan (502)". Pengguna tidak tahu bahwa penyebabnya backend belum berjalan.
+- **Penyebab.** Proxy Vite menjawab 502 tanpa body JSON bila backend di 127.0.0.1:8085 tidak bisa dihubungi. Klien hanya menampilkan kode status. Bila frontend dibuka tanpa proxy, `fetch` gagal dengan `TypeError` dan pesannya bahkan tidak berbahasa Indonesia.
+- **Perbaikan.** `src/api/client.ts` kini menampilkan "Server belum berjalan atau tidak bisa dihubungi. Jalankan backend, lalu coba lagi." untuk 502, 503, atau 504 tanpa pesan JSON, dan untuk `fetch` yang gagal (status 0). Pesan dari backend yang berupa JSON tetap diutamakan.
+- **Uji.** Empat uji baru di `client.test.ts` (502, 503, 504, dan jaringan gagal) gagal sebelum perbaikan. Sesudah perbaikan, seluruh frontend lolos 43/43 dan `npm run build` berhasil.
+
 ## Tindak lanjut
 - ~~Review akhir seluruh cabang `aplikasi-pengguna`~~ selesai, temuannya sudah diperbaiki.
 - ~~Uji JDK 25 di laptop~~ selesai, 141/141 lolos.

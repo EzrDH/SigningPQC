@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError, configureApi } from './client'
 
+const SERVER_DOWN = 'Server belum berjalan atau tidak bisa dihubungi. Jalankan backend, lalu coba lagi.'
+
 function respond(status: number, body: unknown, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...extra } })
 }
@@ -26,6 +28,17 @@ describe('klien API', () => {
   it('galat tanpa body memakai pesan umum', async () => {
     fetchMock.mockResolvedValue(new Response('x', { status: 500 }))
     await expect(api.get('/api/me')).rejects.toMatchObject({ message: 'Terjadi kesalahan (500)' })
+  })
+
+  it.each([502, 503, 504])('%i tanpa body JSON berarti server tidak bisa dihubungi', async (status) => {
+    fetchMock.mockResolvedValue(new Response('', { status }))
+    await expect(api.get('/api/me')).rejects.toMatchObject({ status, message: SERVER_DOWN })
+  })
+
+  it('fetch gagal (jaringan) memberi pesan server tidak bisa dihubungi', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+    await expect(api.get('/api/me')).rejects.toMatchObject({ status: 0, message: SERVER_DOWN })
+    await expect(api.get('/api/me')).rejects.toBeInstanceOf(ApiError)
   })
 
   it('token dikirim sebagai Bearer', async () => {
