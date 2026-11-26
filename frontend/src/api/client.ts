@@ -33,7 +33,10 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
   } catch {
     // body bukan JSON
   }
-  if (response.status === 401 && !path.startsWith('/api/auth/')) config.onUnauthorized()
+  // Hanya 401 karena sesi (ditandai WWW-Authenticate: Bearer, RFC 6750) yang mengakhiri sesi. 401 lain, misalnya
+  // "Konfirmasi tidak cocok" saat menandatangani, ditampilkan sebagai galat biasa.
+  const sessionEnded = response.headers.get('WWW-Authenticate')?.startsWith('Bearer') ?? false
+  if (response.status === 401 && sessionEnded && !path.startsWith('/api/auth/')) config.onUnauthorized()
   throw new ApiError(response.status, message)
 }
 

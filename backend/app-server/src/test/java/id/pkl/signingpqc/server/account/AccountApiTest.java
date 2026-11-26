@@ -174,7 +174,10 @@ class AccountApiTest {
     @Test
     @Order(6)
     void meTanpaTokenDitolak() throws Exception {
-        assertEquals(401, api().get("/api/me", null).statusCode());
+        var noToken = api().get("/api/me", null);
+        assertEquals(401, noToken.statusCode());
+        // Penanda sesi berakhir (RFC 6750) agar klien bisa membedakannya dari "Konfirmasi tidak cocok".
+        assertEquals("Bearer", noToken.headers().firstValue("WWW-Authenticate").orElse(null));
         assertEquals(401, api().get("/api/me", "token-palsu").statusCode());
         token = body(login("budi.uji", PASSWORD)).get("token").asString();
     }
@@ -395,6 +398,7 @@ class AccountApiTest {
                 "code", wrong);
         assertEquals(401, response.statusCode());
         assertTrue(new String(response.body(), StandardCharsets.UTF_8).contains("Konfirmasi tidak cocok"));
+        assertTrue(response.headers().firstValue("WWW-Authenticate").isEmpty(), "konfirmasi salah bukan sesi berakhir");
         assertEquals(before, countFiles(OUTPUT_DIR));
     }
 

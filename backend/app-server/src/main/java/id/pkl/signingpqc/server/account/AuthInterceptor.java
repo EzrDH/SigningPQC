@@ -32,6 +32,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         String accountId = sessions.accountId(token).orElse(null);
         if (accountId == null || store.byId(accountId).isEmpty()) {
             sessions.remove(token);
+            // RFC 6750: membedakan sesi berakhir dari 401 lain seperti "Konfirmasi tidak cocok".
+            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Sesi berakhir, silakan masuk lagi");
         }
         request.setAttribute(ACCOUNT_ID, accountId);

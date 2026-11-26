@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError, configureApi } from './client'
 
-function respond(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+function respond(status: number, body: unknown, extra: Record<string, string> = {}) {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...extra } })
 }
 
 describe('klien API', () => {
@@ -35,12 +35,23 @@ describe('klien API', () => {
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer tok-uji')
   })
 
-  it('401 di luar /api/auth memanggil onUnauthorized', async () => {
-    fetchMock.mockResolvedValue(respond(401, { error: 'Sesi berakhir, silakan masuk lagi' }))
+  it('401 sesi (WWW-Authenticate: Bearer) di luar /api/auth memanggil onUnauthorized', async () => {
+    fetchMock.mockImplementation(async () =>
+      respond(401, { error: 'Sesi berakhir, silakan masuk lagi' }, { 'WWW-Authenticate': 'Bearer' }),
+    )
     await expect(api.get('/api/me')).rejects.toBeInstanceOf(ApiError)
     expect(unauthorized).toBe(1)
     await expect(api.postJson('/api/auth/login', { login: 'a', password: 'b' })).rejects.toBeInstanceOf(ApiError)
     expect(unauthorized).toBe(1)
+  })
+
+  it('401 konfirmasi salah (tanpa WWW-Authenticate) tidak mengakhiri sesi', async () => {
+    fetchMock.mockResolvedValue(respond(401, { error: 'Konfirmasi tidak cocok' }))
+    await expect(api.postForm('/api/me/sign', new FormData())).rejects.toMatchObject({
+      status: 401,
+      message: 'Konfirmasi tidak cocok',
+    })
+    expect(unauthorized).toBe(0)
   })
 
   it('postForm mengembalikan Response mentah bila sukses', async () => {
