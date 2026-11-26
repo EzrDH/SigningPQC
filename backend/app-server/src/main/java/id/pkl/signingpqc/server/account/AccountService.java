@@ -176,6 +176,32 @@ public class AccountService {
         return vault.unlockWithApp(account.id());
     }
 
+    /** Ganti metode konfirmasi. Passphrase wajib dan dihitung untuk penguncian bila salah. */
+    public Account changeConfirmMethod(Account account, Account.ConfirmMethod method, String passphrase)
+            throws GeneralSecurityException, IOException {
+        if (method == account.confirmMethod()) {
+            return account;
+        }
+        if (passphrase == null || passphrase.isEmpty()) {
+            throw ApiException.badRequest("Masukkan passphrase untuk mengganti metode konfirmasi");
+        }
+        guard.check(account.id());
+        try {
+            if (method == Account.ConfirmMethod.TOTP) {
+                vault.enableApp(account.id(), passphrase.toCharArray());
+            } else {
+                vault.disableApp(account.id(), passphrase.toCharArray());
+            }
+        } catch (ApiException e) {
+            guard.failed(account.id());
+            throw e;
+        }
+        guard.succeeded(account.id());
+        Account updated = account.withConfirmMethod(method);
+        store.save(updated);
+        return updated;
+    }
+
     private void requireUnique(String username, String email) {
         if (store.usernameTaken(username)) {
             throw ApiException.conflict("Username sudah dipakai");

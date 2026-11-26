@@ -190,4 +190,122 @@ class AccountApiTest {
             }
         }
     }
+
+    // ------------------------------------------------------------------ Task 6: profil, pengaturan, spesimen
+
+    static byte[] png(int width, int height) throws Exception {
+        java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(width, height,
+                java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D g = image.createGraphics();
+        g.setColor(java.awt.Color.BLUE);
+        g.drawLine(5, height / 2, width - 5, height / 3);
+        g.dispose();
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image, "png", out);
+        return out.toByteArray();
+    }
+
+    String accountDir() throws Exception {
+        try (var folders = Files.list(DATA_DIR.resolve("accounts"))) {
+            for (Path folder : folders.toList()) {
+                if (Files.readString(folder.resolve("account.json")).contains("\"budi.uji\"")) {
+                    return folder.toString();
+                }
+            }
+        }
+        throw new IllegalStateException("akun budi.uji tidak ada");
+    }
+
+    @Test
+    @Order(10)
+    void profilBerisiDuaSertifikat() throws Exception {
+        HttpResponse<String> response = api().get("/api/me", token);
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode me = body(response);
+        assertEquals("budi.uji", me.get("username").asString());
+        assertEquals("budi.uji@contoh.go.id", me.get("email").asString());
+        assertEquals(2, me.get("certificates").size());
+        assertEquals("RSA 3072 bit", me.get("certificates").get(0).get("algorithm").asString());
+        assertTrue(me.get("certificates").get(1).get("algorithm").asString().startsWith("ML-DSA"));
+        assertFalse(me.get("certificates").get(0).get("revoked").asBoolean());
+        assertFalse(me.get("certificates").get(0).get("serialHex").asString().isBlank());
+        assertEquals("TOTP", me.get("confirmMethod").asString());
+        assertEquals("VISIBLE", me.get("appearance").asString());
+        assertEquals(OUTPUT_DIR.toString(), me.get("outputDir").asString());
+        assertFalse(me.get("hasSpecimen").asBoolean());
+        assertFalse(me.toString().contains("passwordHash"));
+    }
+
+    @Test
+    @Order(11)
+    void gantiMetodeButuhPassphrase() throws Exception {
+        Path dir = Path.of(accountDir());
+        assertEquals(400, api().putJson("/api/me/settings", token, "{\"confirmMethod\":\"PASSPHRASE\"}").statusCode());
+        assertEquals(401, api().putJson("/api/me/settings", token,
+                "{\"confirmMethod\":\"PASSPHRASE\",\"passphrase\":\"passphrase-salah-sekali\"}").statusCode());
+        assertEquals(200, api().putJson("/api/me/settings", token,
+                "{\"confirmMethod\":\"PASSPHRASE\",\"passphrase\":\"" + PASSPHRASE + "\"}").statusCode());
+        assertFalse(Files.exists(dir.resolve("dek.app")));
+        assertEquals("PASSPHRASE", body(api().get("/api/me", token)).get("confirmMethod").asString());
+        assertEquals(200, api().putJson("/api/me/settings", token,
+                "{\"confirmMethod\":\"TOTP\",\"passphrase\":\"" + PASSPHRASE + "\"}").statusCode());
+        assertTrue(Files.exists(dir.resolve("dek.app")));
+        assertEquals(200, api().putJson("/api/me/settings", token, "{\"appearance\":\"INVISIBLE\"}").statusCode());
+        assertEquals("INVISIBLE", body(api().get("/api/me", token)).get("appearance").asString());
+        assertEquals(200, api().putJson("/api/me/settings", token, "{\"appearance\":\"VISIBLE\"}").statusCode());
+    }
+
+    @Test
+    @Order(12)
+    void folderKeluaranRelatifDitolak() throws Exception {
+        assertEquals(400, api().putJson("/api/me/settings", token, "{\"outputDir\":\"relatif/folder\"}").statusCode());
+        assertEquals(OUTPUT_DIR.toString(), body(api().get("/api/me", token)).get("outputDir").asString());
+        Path other = OUTPUT_DIR.resolve("lain");
+        assertEquals(200, api().putJson("/api/me/settings", token,
+                "{\"outputDir\":" + json.writeValueAsString(other.toString()) + "}").statusCode());
+        assertTrue(Files.isDirectory(other));
+        assertEquals(200, api().putJson("/api/me/settings", token,
+                "{\"outputDir\":" + json.writeValueAsString(OUTPUT_DIR.toString()) + "}").statusCode());
+    }
+
+    @Test
+    @Order(13)
+    void folderKeluaranTidakBisaDitulis() throws Exception {
+        Path file = Files.writeString(Files.createTempFile("bukan-folder", ".txt"), "x");
+        HttpResponse<String> response = api().putJson("/api/me/settings", token,
+                "{\"outputDir\":" + json.writeValueAsString(file.toString()) + "}");
+        assertEquals(400, response.statusCode());
+        assertEquals("Folder tidak bisa dipakai untuk menyimpan", body(response).get("error").asString());
+        assertEquals(OUTPUT_DIR.toString(), body(api().get("/api/me", token)).get("outputDir").asString());
+    }
+
+    @Test
+    @Order(14)
+    void spesimenPngDiterima() throws Exception {
+        assertEquals(404, api().getBytes("/api/me/specimen", token).statusCode());
+        HttpResponse<byte[]> upload = api().multipart("PUT", "/api/me/specimen", token, png(300, 120), "ttd.png",
+                "image/png", java.util.List.of());
+        assertEquals(200, upload.statusCode(), new String(upload.body(), StandardCharsets.UTF_8));
+        HttpResponse<byte[]> image = api().getBytes("/api/me/specimen", token);
+        assertEquals(200, image.statusCode());
+        assertEquals("image/png", image.headers().firstValue("Content-Type").orElse(""));
+        assertTrue(body(api().get("/api/me", token)).get("hasSpecimen").asBoolean());
+    }
+
+    @Test
+    @Order(15)
+    void spesimenBukanGambarDitolak() throws Exception {
+        assertEquals(400, api().multipart("PUT", "/api/me/specimen", token, "bukan gambar".getBytes(), "ttd.png",
+                "image/png", java.util.List.of()).statusCode());
+        assertEquals(400, api().multipart("PUT", "/api/me/specimen", token, png(2100, 100), "ttd.png", "image/png",
+                java.util.List.of()).statusCode());
+    }
+
+    @Test
+    @Order(16)
+    void riwayatKosong() throws Exception {
+        HttpResponse<String> history = api().get("/api/me/history", token);
+        assertEquals(200, history.statusCode());
+        assertEquals(0, body(history).size());
+    }
 }
