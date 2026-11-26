@@ -308,4 +308,136 @@ class AccountApiTest {
         assertEquals(200, history.statusCode());
         assertEquals(0, body(history).size());
     }
+
+    // ------------------------------------------------------------------ Task 7: tanda tangan dan folder keluaran
+
+    static String lastCode;
+
+    HttpResponse<byte[]> sign(String bearer, byte[] pdf, String fileName, String... fields) throws Exception {
+        return api().multipart("POST", "/api/me/sign", bearer, pdf, fileName, "application/pdf", java.util.List.of(fields));
+    }
+
+    static Path savedPath(HttpResponse<byte[]> response) {
+        return Path.of(URLDecoder.decode(response.headers().firstValue("X-Saved-Path").orElseThrow(),
+                StandardCharsets.UTF_8));
+    }
+
+    static long countFiles(Path dir) throws Exception {
+        try (var files = Files.list(dir)) {
+            return files.filter(Files::isRegularFile).count();
+        }
+    }
+
+    JsonNode verifyOpen(byte[] pdf) throws Exception {
+        HttpResponse<byte[]> response = api().multipart("POST", "/api/verify", null, pdf, "cek.pdf", "application/pdf",
+                java.util.List.of());
+        assertEquals(200, response.statusCode());
+        return json.readTree(new String(response.body(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @Order(20)
+    void tandaTanganVisibleTersimpan() throws Exception {
+        byte[] pdf = id.pkl.signingpqc.core.SamplePdf.create("Surat Uji Aplikasi", "Ditandatangani dari aplikasi.");
+        lastCode = nextCode(totpSecretBase32);
+        HttpResponse<byte[]> response = sign(token, pdf, "surat.pdf", "code", lastCode);
+        assertEquals(200, response.statusCode(), new String(response.body(), StandardCharsets.UTF_8));
+        Path saved = savedPath(response);
+        assertEquals("surat-ttd.pdf", saved.getFileName().toString());
+        assertEquals(OUTPUT_DIR, saved.getParent());
+        assertTrue(java.util.Arrays.equals(response.body(), Files.readAllBytes(saved)));
+        JsonNode result = verifyOpen(response.body());
+        assertEquals("SAH", result.get("validation").get("status").asString(), result.toString());
+        JsonNode layers = result.get("validation").get("layers");
+        assertEquals("LTA", layers.get(layers.size() - 1).get("pades").asString(), layers.toString());
+        assertTrue(result.get("validation").get("hybridComplete").asBoolean());
+    }
+
+    @Test
+    @Order(21)
+    void tandaTanganKeduaTidakMenimpa() throws Exception {
+        byte[] first = Files.readAllBytes(OUTPUT_DIR.resolve("surat-ttd.pdf"));
+        byte[] pdf = id.pkl.signingpqc.core.SamplePdf.create("Surat Uji Aplikasi", "Kedua.");
+        HttpResponse<byte[]> response = sign(token, pdf, "surat.pdf", "code", nextCode(totpSecretBase32));
+        assertEquals(200, response.statusCode());
+        assertEquals("surat-ttd-2.pdf", savedPath(response).getFileName().toString());
+        assertTrue(java.util.Arrays.equals(first, Files.readAllBytes(OUTPUT_DIR.resolve("surat-ttd.pdf"))));
+    }
+
+    @Test
+    @Order(22)
+    void invisibleTanpaWidgetTampak() throws Exception {
+        assertEquals(200, api().putJson("/api/me/settings", token, "{\"appearance\":\"INVISIBLE\"}").statusCode());
+        byte[] pdf = id.pkl.signingpqc.core.SamplePdf.create("Surat Invisible", "Tanpa kotak.");
+        HttpResponse<byte[]> response = sign(token, pdf, "invisible.pdf", "code", nextCode(totpSecretBase32));
+        assertEquals(200, response.statusCode());
+        try (org.apache.pdfbox.pdmodel.PDDocument document = org.apache.pdfbox.Loader.loadPDF(response.body())) {
+            var fields = document.getDocumentCatalog().getAcroForm().getFields().stream()
+                    .filter(org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField.class::isInstance)
+                    .map(org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField.class::cast).toList();
+            assertTrue(fields.size() >= 2);
+            for (var field : fields) {
+                assertEquals(0f, field.getWidgets().get(0).getRectangle().getWidth(), 0.01f, field.getFullyQualifiedName());
+            }
+        }
+        assertEquals("SAH", verifyOpen(response.body()).get("validation").get("status").asString());
+        assertEquals(200, api().putJson("/api/me/settings", token, "{\"appearance\":\"VISIBLE\"}").statusCode());
+    }
+
+    @Test
+    @Order(23)
+    void kodeSalahTanpaBerkas() throws Exception {
+        long before = countFiles(OUTPUT_DIR);
+        clock.advance(Duration.ofSeconds(Totp.PERIOD_SECONDS));
+        String now = Totp.code(TestBase32.decode(totpSecretBase32), clock.instant().getEpochSecond() / Totp.PERIOD_SECONDS);
+        String wrong = now.equals("123456") ? "654321" : "123456";
+        HttpResponse<byte[]> response = sign(token, id.pkl.signingpqc.core.SamplePdf.create("x", "y"), "salah.pdf",
+                "code", wrong);
+        assertEquals(401, response.statusCode());
+        assertTrue(new String(response.body(), StandardCharsets.UTF_8).contains("Konfirmasi tidak cocok"));
+        assertEquals(before, countFiles(OUTPUT_DIR));
+    }
+
+    @Test
+    @Order(24)
+    void kodeDipakaiUlangDitolak() throws Exception {
+        long before = countFiles(OUTPUT_DIR);
+        HttpResponse<byte[]> response = sign(token, id.pkl.signingpqc.core.SamplePdf.create("x", "y"), "ulang.pdf",
+                "code", lastCode);
+        assertEquals(401, response.statusCode());
+        assertEquals(before, countFiles(OUTPUT_DIR));
+    }
+
+    @Test
+    @Order(25)
+    void bukanPdfDitolak() throws Exception {
+        long before = countFiles(OUTPUT_DIR);
+        HttpResponse<byte[]> response = sign(token, "bukan pdf".getBytes(), "teks.pdf", "code", nextCode(totpSecretBase32));
+        assertEquals(400, response.statusCode());
+        assertEquals(before, countFiles(OUTPUT_DIR));
+    }
+
+    @Test
+    @Order(26)
+    void riwayatTercatat() throws Exception {
+        JsonNode history = body(api().get("/api/me/history", token));
+        assertTrue(history.size() >= 3, history.toString());
+        assertEquals("Ditandatangani", history.get(history.size() - 1).get("activity").asString());
+        assertEquals("surat-ttd.pdf", history.get(history.size() - 1).get("fileName").asString());
+        assertEquals("invisible-ttd.pdf", history.get(0).get("fileName").asString());
+    }
+
+    @Test
+    @Order(27)
+    void passphraseMembukaKunci() throws Exception {
+        String dina = register(this, "dina.uji", "dina@contoh.go.id");
+        assertEquals(200, api().putJson("/api/me/settings", dina,
+                "{\"confirmMethod\":\"PASSPHRASE\",\"passphrase\":\"" + PASSPHRASE + "\"}").statusCode());
+        byte[] pdf = id.pkl.signingpqc.core.SamplePdf.create("Surat Dina", "Passphrase.");
+        assertEquals(200, sign(dina, pdf, "dina.pdf", "passphrase", PASSPHRASE).statusCode());
+        for (int i = 0; i < 5; i++) {
+            assertEquals(401, sign(dina, pdf, "dina.pdf", "passphrase", "passphrase-salah-sekali").statusCode());
+        }
+        assertEquals(423, sign(dina, pdf, "dina.pdf", "passphrase", PASSPHRASE).statusCode());
+    }
 }
