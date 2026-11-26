@@ -43,11 +43,19 @@ Keduanya diperbaiki dengan TDD: uji ditulis dulu, terlihat gagal, lalu kode dipe
 | `mvn -o -Dmaven.compiler.release=21 -pl app-server -am test -Dtest=AccountApiTest,LoginGuardTest` sebelum perbaikan | LoginGuardTest: 1 gagal (`loginBerhasilTidakMengosongkanHitunganKonfirmasi`). AccountApiTest: 4 gagal dan 4 error. Kedua uji baru gagal, dan uji tanda tangan sesudahnya ikut gagal karena folder keluaran akun uji sudah berpindah ke folder data |
 | Uji yang sama sesudah perbaikan | LoginGuardTest 5/5, AccountApiTest 27/27 |
 | Seluruh backend (`mvn -o test`) | 145/145 lolos (sebelumnya 141, ditambah 4 uji baru) |
+| Laptop Windows, Eclipse Temurin 25.0.5.1, `.\mvnw.cmd -B test` pada commit `097f229` | BUILD SUCCESS, 145/145 lolos (Signer Core 7, PKI Uji 70, App Server 68), tanpa baris `[WARNING]` atau `[ERROR]` |
+
+Tinjauan keamanan ulang di laptop atas `LoginGuard`, `AccountService`, dan `MeController` menyatakan kedua perbaikan bekerja sesuai maksud. Nama berkas keluaran aman: `OutputFolder.baseName` membuang pemisah path dan karakter aneh, dan berkas ditulis dengan `CREATE_NEW` sehingga tidak ada yang tertimpa.
 
 ## Keterbatasan
 - Folder keluaran masih boleh berada di mana saja di luar folder data, selama proses backend bisa menulis di sana. Untuk aplikasi desktop satu pengguna ini sesuai desain. Bila backend kelak dipakai bersama oleh banyak orang, folder keluaran sebaiknya dibatasi ke satu folder dasar per akun.
 - Penghitung penguncian masih disimpan di memori dan hilang saat backend dimulai ulang. Ini sama seperti sebelumnya.
 - Penguncian tetap per akun, jadi orang lain yang tahu username bisa sengaja mengunci akun selama 5 menit. Ini sesuai desain.
 
+- Pemeriksaan folder hanya dilakukan saat pengaturan disimpan. Saat tanda tangan dan perpanjangan, `MeDocumentController` menulis ke `account.outputDir()` tanpa memeriksa ulang. Bila folder itu kemudian diganti dengan junction atau tautan simbolik ke folder data, berkas `-ttd.pdf` baru bisa masuk ke sana. Dampaknya kecil karena yang ditulis hanya berkas PDF baru dan tidak ada yang tertimpa. Tingkat: rendah.
+- Akun yang folder keluarannya disimpan sebelum perbaikan ini tidak diperiksa ulang. Ini hanya menyangkut akun uji lama.
+- Siapa pun yang tahu username tetap bisa mengunci akun selama 5 menit dengan 5 password salah. Ini konsekuensi umum dari penguncian, bukan celah baru.
+
 ## Tindak lanjut
-- Jalankan ulang `.\mvnw.cmd -B test` di laptop dengan JDK 25 setelah commit ini.
+- ~~Jalankan ulang `.\mvnw.cmd -B test` di laptop dengan JDK 25~~ selesai, 145/145 lolos.
+- Opsional: panggil pemeriksaan folder data juga di `OutputFolder.save`, supaya junction yang dibuat belakangan ikut tertolak.
