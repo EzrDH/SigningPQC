@@ -68,20 +68,27 @@ function toDisplay(u: number, v: number, view: PageView): [number, number] {
   }
 }
 
-function round(n: number): number {
-  return Math.round(n * 1000) / 1000
-}
+// Pembulatan ke 3 desimal ke arah dalam kotak: tepi dekat dibulatkan ke atas, tepi jauh ke bawah, sehingga kotak yang
+// rapat ke tepi halaman tidak keluar halaman karena pembulatan (misalnya A4 595.2755905511812 pt).
+const EPS = 1e-6
+const ceil3 = (n: number) => Math.ceil(n * 1000 - EPS) / 1000
+const floor3 = (n: number) => Math.floor(n * 1000 + EPS) / 1000
+const round3 = (n: number) => Math.round(n * 1000) / 1000
 
 /** Kotak di layar ke kotak di halaman PDF tanpa rotasi. */
 export function screenToPdf(box: ScreenBox, view: PageView): PdfBox {
   const s = view.scale
   const [u1, v1] = toPage(box.left / s, box.top / s, view)
   const [u2, v2] = toPage((box.left + box.width) / s, (box.top + box.height) / s, view)
+  const x = Math.max(0, ceil3(Math.min(u1, u2)))
+  const y = Math.max(0, ceil3(Math.min(v1, v2)))
+  const right = Math.min(floor3(Math.max(u1, u2)), view.pageWidthPt)
+  const bottom = Math.min(floor3(Math.max(v1, v2)), view.pageHeightPt)
   return {
-    x: round(Math.min(u1, u2)) + 0,
-    yFromTop: round(Math.min(v1, v2)) + 0,
-    width: round(Math.abs(u2 - u1)),
-    height: round(Math.abs(v2 - v1)),
+    x: x + 0,
+    yFromTop: y + 0,
+    width: round3(right - x),
+    height: round3(bottom - y),
   }
 }
 

@@ -251,6 +251,56 @@ class VisibleSignatureTest {
                 SignatureDetails.of("Uji", "Uji"), above, null));
     }
 
+    /** A4 dari ReportLab (595.2755905511812 pt): kotak rapat kanan bawah dari frontend (dibulatkan 3 desimal) diterima. */
+    @Test
+    void kotakRapatTepiPadaHalamanDesimalPanjangDiterima() throws Exception {
+        byte[] pdf = pageWithBoxes(new PDRectangle(595.2755905511812f, 841.8897637795277f), null);
+        VisibleSignature edge = new VisibleSignature(0, 415.276f, 766.89f, 180, 75, List.of());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of("Uji", "Uji"), edge, null);
+        try (PDDocument document = Loader.loadPDF(out)) {
+            PDRectangle rect = firstWidget(document).getRectangle();
+            PDRectangle media = document.getPage(0).getMediaBox();
+            assertTrue(rect.getUpperRightX() <= media.getUpperRightX() && rect.getLowerLeftY() >= media.getLowerLeftY(),
+                    "kotak di dalam halaman: " + rect);
+            assertEquals(180, rect.getWidth(), 0.01f);
+        }
+    }
+
+    /** CropBox [36 36 576 756] di MediaBox [0 0 612 792]: koordinat diukur dari pojok kiri atas area yang tampil. */
+    @Test
+    void koordinatMengikutiCropBox() throws Exception {
+        byte[] pdf = pageWithBoxes(new PDRectangle(612, 792), new PDRectangle(36, 36, 540, 720));
+        VisibleSignature box = new VisibleSignature(0, 100, 100, 180, 75, List.of());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of("Uji", "Uji"), box, null);
+        try (PDDocument document = Loader.loadPDF(out)) {
+            PDRectangle rect = firstWidget(document).getRectangle();
+            assertEquals(136, rect.getLowerLeftX(), 0.01f);
+            assertEquals(756 - 100 - 75, rect.getLowerLeftY(), 0.01f);
+        }
+        // Di luar CropBox (masih di dalam MediaBox) ditolak.
+        VisibleSignature outside = new VisibleSignature(0, 400, 100, 180, 75, List.of());
+        assertThrows(IllegalArgumentException.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
+                SignatureDetails.of("Uji", "Uji"), outside, null));
+    }
+
+    private static byte[] pageWithBoxes(PDRectangle media, PDRectangle crop) throws Exception {
+        try (PDDocument document = new PDDocument(); java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage(media);
+            if (crop != null) {
+                page.setCropBox(crop);
+            }
+            document.addPage(page);
+            document.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    private static PDAnnotationWidget firstWidget(PDDocument document) {
+        return document.getDocumentCatalog().getAcroForm().getFields().stream()
+                .filter(PDSignatureField.class::isInstance).map(PDSignatureField.class::cast).findFirst().orElseThrow()
+                .getWidgets().get(0);
+    }
+
     private static void collect(PDFormXObject form, List<PDImageXObject> images, StringBuilder content, int depth)
             throws java.io.IOException {
         if (depth > 6) {

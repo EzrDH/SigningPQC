@@ -33,6 +33,16 @@ public record VisibleSignature(int pageIndex, float x, float yFromTop, float wid
         return width >= 120 && height >= 60;
     }
 
+    /**
+     * Memeriksa kotak muat di halaman dokumen (batas CropBox dan ukuran minimal sesuai rotasi), sama dengan pemeriksaan
+     * saat menandatangani. Dipakai sebelum kunci dibuka agar konfirmasi pengguna tidak terbuang.
+     *
+     * @throws IllegalArgumentException bila halaman tidak ada atau kotak tidak muat
+     */
+    public void requireFits(org.apache.pdfbox.pdmodel.PDDocument document) {
+        SignatureAppearance.rectangle(document, this);
+    }
+
     /** Kotak dengan teks standar (tanpa spesimen gambar). */
     public VisibleSignature(int pageIndex, float x, float yFromTop, float width, float height, List<String> extraLines) {
         this(pageIndex, x, yFromTop, width, height, extraLines, null);

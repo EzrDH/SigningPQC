@@ -65,3 +65,19 @@ describe('defaultBox', () => {
     })
   })
 })
+
+describe('kotak di tepi halaman berukuran desimal panjang', () => {
+  // A4 dari ReportLab: 595.2755905511812 x 841.8897637795277. Pembulatan tidak boleh membuat kotak keluar halaman.
+  const W = 595.2755905511812
+  const H = 841.8897637795277
+  for (const scale of [0.7, 0.81, 1.1]) {
+    it(`skala ${scale}: kotak rapat kanan bawah tetap di dalam halaman`, () => {
+      const view = { scale, rotation: 0 as const, pageWidthPt: W, pageHeightPt: H }
+      const box = screenToPdf({ left: (W - 180) * scale, top: (H - 75) * scale, width: 180 * scale, height: 75 * scale }, view)
+      expect(box.x + box.width).toBeLessThanOrEqual(W)
+      expect(box.yFromTop + box.height).toBeLessThanOrEqual(H)
+      expect(box.width).toBeGreaterThan(179.99)
+      expect(box.height).toBeGreaterThan(74.99)
+    })
+  }
+})

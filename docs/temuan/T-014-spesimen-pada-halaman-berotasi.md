@@ -64,8 +64,24 @@ Pembaca PDF memutar seluruh halaman, termasuk anotasi, menurut `/Rotate`. Isi ap
 Halaman 180 derajat tidak menukar ukuran, tetapi tanpa Matrix isinya tampil terbalik. Karena itu Matrix juga dipasang untuk rotasi 180.
 
 ## Keterbatasan yang tersisa
-- Frontend memakai ukuran halaman dari pdf.js (`page.view`, yaitu CropBox), sedangkan backend memakai MediaBox. Pada PDF yang CropBox-nya lebih kecil atau bergeser dari MediaBox, posisi bisa meleset sebesar selisihnya. PDF hasil aplikasi kantor umumnya tidak punya CropBox berbeda.
+- ~~Frontend memakai CropBox, backend memakai MediaBox.~~ Sudah diperbaiki setelah review akhir: backend kini juga mengukur koordinat dari pojok kiri atas CropBox (lihat bagian "Perbaikan setelah review akhir").
 - Hasil visual di Adobe Acrobat Reader belum dicek. Rencananya dicek bersama tangkapan layar T-012. Uji browser T-015 sudah memastikan posisi dan orientasi spesimen pada render pdftoppm (Poppler) untuk halaman rotasi 90.
+
+## Perbaikan setelah review akhir
+Review akhir seluruh cabang menemukan dua masalah lain yang masih terkait posisi kotak. Keduanya sudah diperbaiki, dan setiap perbaikan diawali uji yang gagal.
+
+1. **Kotak yang rapat ke tepi kanan atau bawah ditolak setelah kode TOTP terpakai.**
+   - Penyebab: pada halaman berukuran desimal panjang, misalnya A4 buatan ReportLab (595.2755905511812 pt), frontend membulatkan x dan lebar sendiri-sendiri ke 3 desimal. Hasilnya x + lebar = 595.276, sedikit melewati tepi halaman.
+   - Penyebab kedua: pemeriksaan batas di backend baru berjalan saat menandatangani, sesudah kunci dibuka. Kode TOTP sudah terpakai, lalu pengguna mendapat pesan "Kotak tanda tangan keluar dari halaman".
+   - Perbaikan:
+     - `coords.ts` membulatkan tepi dekat ke atas dan tepi jauh ke bawah, dan tidak pernah melewati ukuran halaman.
+     - Backend menerima selisih pembulatan sampai 0,5 pt lalu merapatkan kotak ke dalam halaman.
+     - `SigningService.placementOf` menjalankan pemeriksaan lengkap (`VisibleSignature.requireFits`: batas halaman dan ukuran minimal sesuai rotasi) sebelum kunci dibuka.
+   - Uji: `coords.test.ts` (3 skala), `VisibleSignatureTest.kotakRapatTepiPadaHalamanDesimalPanjangDiterima`, `PlacementTest.kotakTidakMuatDitolakSebelumMembukaKunci`.
+2. **PDF yang CropBox-nya berbeda dari MediaBox.**
+   - Penyebab: pdf.js menampilkan area CropBox, tetapi backend mengukur dari MediaBox. Untuk MediaBox [0 0 612 792] dengan CropBox [36 36 576 756], tanda tangan bergeser 36 pt ke kiri dan ke atas.
+   - Perbaikan: `SignatureAppearance.rectangle` dan `placementOf` kini mengukur dari pojok kiri atas CropBox (`getCropBox()`, yang sudah dipotong ke MediaBox) dan memeriksa batas terhadap CropBox.
+   - Uji: `VisibleSignatureTest.koordinatMengikutiCropBox` dan `PlacementTest.bawaanMengikutiCropBox`.
 
 ## Tindak lanjut
 Uji manual di Adobe Reader dengan satu PDF lanskap hasil pindai (rotasi 90) dilakukan pada tahap uji laptop.

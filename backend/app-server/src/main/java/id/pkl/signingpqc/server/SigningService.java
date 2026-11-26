@@ -96,7 +96,8 @@ public class SigningService {
                         + document.getNumberOfPages() + " halaman)");
             }
             var pdPage = document.getPage(page - 1);
-            PDRectangle box = pdPage.getMediaBox();
+            // Area yang tampil (CropBox), sama dengan ukuran halaman di pdf.js.
+            PDRectangle box = pdPage.getCropBox();
             int turns = Math.floorMod(pdPage.getRotation(), 360) / 90;
             boolean turned = turns % 2 == 1;
             float pageW = box.getWidth();
@@ -120,7 +121,9 @@ public class SigningService {
                     top = Math.min(a[1], b[1]);
                 }
             }
-            return new VisibleSignature(page - 1, left, top, w, h, List.of(), specimenPng);
+            VisibleSignature visible = new VisibleSignature(page - 1, left, top, w, h, List.of(), specimenPng);
+            visible.requireFits(document);
+            return visible;
         }
     }
 

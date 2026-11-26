@@ -3,13 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatDate } from '../lib/status'
 import { useAuth } from '../stores/auth'
-import { useDocument } from '../stores/document'
 import { useSettings } from '../stores/settings'
 
 const router = useRouter()
 const auth = useAuth()
 const settings = useSettings()
-const doc = useDocument()
 const error = ref<string | null>(null)
 
 const initials = computed(() => {
@@ -30,9 +28,8 @@ onMounted(async () => {
 })
 
 async function logout() {
+  // logout() memanggil clear(), yang juga mengosongkan dokumen dan pengaturan.
   await auth.logout().catch(() => undefined)
-  settings.reset()
-  doc.clear()
   await router.replace('/masuk')
 }
 </script>

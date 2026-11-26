@@ -39,25 +39,40 @@ final class SignatureAppearance {
     private SignatureAppearance() {
     }
 
-    /** Rectangle widget dalam koordinat PDF (titik asal di kiri bawah). */
+    /** Selisih pembulatan koordinat dari klien yang masih diterima lalu dirapatkan ke dalam halaman (point). */
+    private static final float TOLERANCE = 0.5f;
+
+    /**
+     * Rectangle widget dalam koordinat PDF (titik asal di kiri bawah). Koordinat {@code visible} diukur dari pojok kiri
+     * atas area halaman yang tampil (CropBox, yang dipotong ke MediaBox), seperti yang ditampilkan pembaca PDF dan pdf.js.
+     */
     static PDRectangle rectangle(PDDocument document, VisibleSignature visible) {
         if (visible.pageIndex() < 0 || visible.pageIndex() >= document.getNumberOfPages()) {
             throw new IllegalArgumentException("Halaman " + (visible.pageIndex() + 1) + " tidak ada di dokumen");
         }
         PDPage page = document.getPage(visible.pageIndex());
-        PDRectangle mediaBox = page.getMediaBox();
-        float lowerLeftY = mediaBox.getHeight() - visible.yFromTop() - visible.height();
-        if (visible.x() < 0 || visible.yFromTop() < 0 || lowerLeftY < 0
-                || visible.x() + visible.width() > mediaBox.getWidth()) {
+        PDRectangle crop = page.getCropBox();
+        float pageWidth = crop.getWidth();
+        float pageHeight = crop.getHeight();
+        float width = visible.width();
+        float height = visible.height();
+        float x = visible.x();
+        float top = visible.yFromTop();
+        if (width > pageWidth + TOLERANCE || height > pageHeight + TOLERANCE || x < -TOLERANCE || top < -TOLERANCE
+                || x + width > pageWidth + TOLERANCE || top + height > pageHeight + TOLERANCE) {
             throw new IllegalArgumentException("Kotak tanda tangan keluar dari halaman");
         }
+        width = Math.min(width, pageWidth);
+        height = Math.min(height, pageHeight);
+        x = Math.max(0, Math.min(x, pageWidth - width));
+        top = Math.max(0, Math.min(top, pageHeight - height));
         boolean turned = quarterTurns(page) % 2 == 1;
-        float shownWidth = turned ? visible.height() : visible.width();
-        float shownHeight = turned ? visible.width() : visible.height();
+        float shownWidth = turned ? height : width;
+        float shownHeight = turned ? width : height;
         if (!VisibleSignature.fitsMinimum(shownWidth, shownHeight)) {
             throw new IllegalArgumentException("Kotak tanda tangan minimal 120 x 60 point");
         }
-        return new PDRectangle(visible.x(), lowerLeftY, visible.width(), visible.height());
+        return new PDRectangle(crop.getLowerLeftX() + x, crop.getUpperRightY() - top - height, width, height);
     }
 
     /** /Rotate halaman dalam kelipatan 90 derajat searah jarum jam (0 sampai 3). */

@@ -43,6 +43,32 @@ class PlacementTest {
         assertEquals(180, v.height(), 0.01f);
     }
 
+    /** Kotak yang tidak muat ditolak oleh placementOf, sebelum kunci dibuka, agar kode TOTP tidak terbuang. */
+    @Test
+    void kotakTidakMuatDitolakSebelumMembukaKunci() throws Exception {
+        byte[] pdf = SamplePdf.create("Uji", "Batas.");
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> SigningService.placementOf(pdf, 1, 500f, 100f, 180f, 75f, null));
+        // Rotasi 90: 180 x 75 di halaman asli tampil 75 x 180, di bawah minimal tampilan.
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> SigningService.placementOf(rotated(90), 1, 100f, 100f, 180f, 75f, null));
+    }
+
+    @Test
+    void bawaanMengikutiCropBox() throws Exception {
+        byte[] pdf;
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            var page = new org.apache.pdfbox.pdmodel.PDPage(new org.apache.pdfbox.pdmodel.common.PDRectangle(612, 792));
+            page.setCropBox(new org.apache.pdfbox.pdmodel.common.PDRectangle(36, 36, 540, 720));
+            document.addPage(page);
+            document.save(out);
+            pdf = out.toByteArray();
+        }
+        VisibleSignature v = SigningService.placementOf(pdf, 1, null, null, null, null, null);
+        assertEquals(540 - 180 - 40, v.x(), 0.01f);
+        assertEquals(720 - 75 - 40, v.yFromTop(), 0.01f);
+    }
+
     private static byte[] rotated(int degrees) throws Exception {
         try (PDDocument document = Loader.loadPDF(SamplePdf.create("Lanskap", "Berotasi."));
                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {

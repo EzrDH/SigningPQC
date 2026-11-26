@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { api } from '../api/client'
 import type { SessionResponse } from '../api/types'
+import { useDocument } from './document'
+import { useSettings } from './settings'
 
 const TOKEN_KEY = 'tte.token'
 const USER_KEY = 'tte.username'
@@ -21,7 +23,10 @@ export const useAuth = defineStore('auth', {
       sessionStorage.setItem(TOKEN_KEY, token)
       sessionStorage.setItem(USER_KEY, username)
     },
+    /** Mengakhiri sesi di browser, termasuk dokumen dan pengaturan pengguna ini agar tidak terlihat pengguna berikutnya. */
     clear() {
+      useDocument().clear()
+      useSettings().reset()
       this.token = null
       this.username = null
       sessionStorage.removeItem(TOKEN_KEY)

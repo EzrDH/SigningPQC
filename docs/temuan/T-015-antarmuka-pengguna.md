@@ -19,7 +19,7 @@ Uji ini menemukan dua bug:
 - Kode konfirmasi yang salah membuat pengguna ter-logout.
 - Spesimen pada halaman berotasi tidak benar (dicatat terpisah di T-014).
 
-Keduanya sudah diperbaiki dengan uji yang gagal lebih dulu. Seluruh 35 uji Vitest dan 137 uji backend lolos.
+Keduanya sudah diperbaiki dengan uji yang gagal lebih dulu. Setelah review akhir dan perbaikannya, seluruh 39 uji Vitest dan 141 uji backend lolos.
 
 ## Uji otomatis (Vitest)
 | Berkas | Isi | Jumlah |
@@ -28,9 +28,10 @@ Keduanya sudah diperbaiki dengan uji yang gagal lebih dulu. Seluruh 35 uji Vites
 | `router/guard.test.ts` | Tanpa sesi ke Masuk, halaman publik saat sudah masuk ke Beranda, selain itu lewat | 3 |
 | `components/OtpInput.test.ts` | Enam kotak, hanya angka, tempel 6 digit, tempel berspasi | 4 |
 | `lib/validasi.test.ts` | Aturan dan pesan sama dengan backend | 8 |
-| `lib/coords.test.ts` | Rotasi 0, 90, 180, 270, kebalikan, kotak bawaan Letter | 6 |
+| `lib/coords.test.ts` | Rotasi 0, 90, 180, 270, kebalikan, kotak bawaan Letter, kotak rapat tepi pada halaman berukuran desimal panjang | 9 |
 | `lib/status.test.ts` | Status riwayat, lima respons verifikasi, perpanjangan | 8 |
-| **Total** | | **35 lolos** |
+| `stores/auth.test.ts` | Sesi berakhir mengosongkan dokumen dan pengaturan pengguna sebelumnya | 1 |
+| **Total** | | **39 lolos** |
 
 `npm run build` (vue-tsc dan vite) lolos tanpa galat tipe.
 
@@ -92,10 +93,15 @@ Tidak ada galat JavaScript di halaman. Satu-satunya galat konsol adalah respons 
   - Uji klien baru "401 konfirmasi salah (tanpa WWW-Authenticate) tidak mengakhiri sesi" gagal sebelum perbaikan dan lolos sesudahnya.
   - `AccountApiTest` memeriksa header ada pada 401 sesi dan tidak ada pada 401 konfirmasi salah.
 
-### 2. Spesimen pada halaman berotasi (diperbaiki)
-Lihat T-014.
+### 2. Spesimen pada halaman berotasi, kotak di tepi halaman, dan CropBox (diperbaiki)
+Lihat T-014, termasuk bagian "Perbaikan setelah review akhir".
 
-### 3. CSS mockup yang terbuang saat porting (diperbaiki)
+### 3. Data pengguna sebelumnya tetap ada setelah sesi berakhir (diperbaiki, dari review akhir)
+- **Gejala.** Bila sesi berakhir karena waktu habis, dokumen yang sedang dibuka dan pengaturan akun tetap tersimpan di memori halaman. Orang berikutnya yang masuk di jendela yang sama bisa membuka dokumen itu lewat layar Tandatangani.
+- **Perbaikan.** `useAuth().clear()` kini juga mengosongkan store dokumen dan pengaturan. Fungsi ini dipakai saat keluar maupun saat sesi berakhir.
+- **Uji.** `stores/auth.test.ts` gagal sebelum perbaikan.
+
+### 4. CSS mockup yang terbuang saat porting (diperbaiki)
 Aturan `.viewer` dan `.av` sempat hilang karena saringan kelas kerangka mockup ikut membuang nama yang berawalan sama. Gejalanya: latar penampil tidak tampil dan nama berkas tidak sejajar halaman. Tangkapan layar membantu menemukannya, lalu kedua aturan dipulihkan.
 
 ## Keterbatasan
