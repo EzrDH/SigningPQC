@@ -109,3 +109,13 @@ export interface VerifyResponse {
   signatures: SignatureView[]
   validation: ValidationReport | null
 }
+
+/**
+ * Jawaban /api/me/sign dan /api/me/renew. Berupa JSON, bukan berkas PDF, agar pengelola unduhan di browser
+ * (misalnya IDM) tidak merebut jawabannya.
+ */
+export interface SavedDocument {
+  fileName: string
+  savedPath: string
+  pdfBase64: string
+}

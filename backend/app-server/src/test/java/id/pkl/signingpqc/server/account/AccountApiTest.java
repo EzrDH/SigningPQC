@@ -337,9 +337,19 @@ class AccountApiTest {
         return api().multipart("POST", "/api/me/sign", bearer, pdf, fileName, "application/pdf", java.util.List.of(fields));
     }
 
+    /** Jawaban tanda tangan/perpanjangan berupa JSON {fileName, savedPath, pdfBase64}, bukan berkas PDF. */
+    static JsonNode savedDocument(HttpResponse<byte[]> response) {
+        assertTrue(response.headers().firstValue("Content-Type").orElse("").startsWith("application/json"),
+                "jawaban harus JSON agar tidak direbut pengelola unduhan");
+        return JsonMapper.shared().readTree(new String(response.body(), StandardCharsets.UTF_8));
+    }
+
     static Path savedPath(HttpResponse<byte[]> response) {
-        return Path.of(URLDecoder.decode(response.headers().firstValue("X-Saved-Path").orElseThrow(),
-                StandardCharsets.UTF_8));
+        return Path.of(savedDocument(response).get("savedPath").asString());
+    }
+
+    static byte[] signedPdf(HttpResponse<byte[]> response) {
+        return java.util.Base64.getDecoder().decode(savedDocument(response).get("pdfBase64").asString());
     }
 
     static long countFiles(Path dir) throws Exception {
@@ -365,8 +375,9 @@ class AccountApiTest {
         Path saved = savedPath(response);
         assertEquals("surat-ttd.pdf", saved.getFileName().toString());
         assertEquals(OUTPUT_DIR, saved.getParent());
-        assertTrue(java.util.Arrays.equals(response.body(), Files.readAllBytes(saved)));
-        JsonNode result = verifyOpen(response.body());
+        assertEquals("surat-ttd.pdf", savedDocument(response).get("fileName").asString());
+        assertTrue(java.util.Arrays.equals(signedPdf(response), Files.readAllBytes(saved)));
+        JsonNode result = verifyOpen(signedPdf(response));
         assertEquals("SAH", result.get("validation").get("status").asString(), result.toString());
         JsonNode layers = result.get("validation").get("layers");
         assertEquals("LTA", layers.get(layers.size() - 1).get("pades").asString(), layers.toString());
@@ -391,7 +402,7 @@ class AccountApiTest {
         byte[] pdf = id.pkl.signingpqc.core.SamplePdf.create("Surat Invisible", "Tanpa kotak.");
         HttpResponse<byte[]> response = sign(token, pdf, "invisible.pdf", "code", nextCode(totpSecretBase32));
         assertEquals(200, response.statusCode());
-        try (org.apache.pdfbox.pdmodel.PDDocument document = org.apache.pdfbox.Loader.loadPDF(response.body())) {
+        try (org.apache.pdfbox.pdmodel.PDDocument document = org.apache.pdfbox.Loader.loadPDF(signedPdf(response))) {
             var fields = document.getDocumentCatalog().getAcroForm().getFields().stream()
                     .filter(org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField.class::isInstance)
                     .map(org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField.class::cast).toList();
@@ -400,7 +411,7 @@ class AccountApiTest {
                 assertEquals(0f, field.getWidgets().get(0).getRectangle().getWidth(), 0.01f, field.getFullyQualifiedName());
             }
         }
-        assertEquals("SAH", verifyOpen(response.body()).get("validation").get("status").asString());
+        assertEquals("SAH", verifyOpen(signedPdf(response)).get("validation").get("status").asString());
         assertEquals(200, api().putJson("/api/me/settings", token, "{\"appearance\":\"VISIBLE\"}").statusCode());
     }
 

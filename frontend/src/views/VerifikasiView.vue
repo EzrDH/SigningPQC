@@ -6,7 +6,8 @@ import PdfViewer from '../components/PdfViewer.vue'
 import SignatureDetail from '../components/SignatureDetail.vue'
 import VerifyResult from '../components/VerifyResult.vue'
 import { api } from '../api/client'
-import type { VerifyResponse } from '../api/types'
+import type { SavedDocument, VerifyResponse } from '../api/types'
+import { savedFile } from '../lib/saved'
 import { describeResult } from '../lib/status'
 import { useDocument } from '../stores/document'
 
@@ -44,13 +45,10 @@ async function renew() {
   try {
     const form = new FormData()
     form.append('file', doc.file)
-    const response = await api.postForm('/api/me/renew', form)
-    const header = response.headers.get('X-Saved-Path')
-    const path = header ? decodeURIComponent(header) : null
-    const name = path?.split(/[\\/]/).pop() ?? doc.file.name
+    const saved = (await (await api.postForm('/api/me/renew', form)).json()) as SavedDocument
     // Hasil perpanjangan menjadi dokumen yang ditampilkan, lalu diverifikasi ulang.
-    await doc.set(new File([await response.blob()], name, { type: 'application/pdf' }))
-    renewedPath.value = path ?? 'folder keluaran'
+    await doc.set(savedFile(saved))
+    renewedPath.value = saved.savedPath
     await verify()
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Perpanjangan gagal'

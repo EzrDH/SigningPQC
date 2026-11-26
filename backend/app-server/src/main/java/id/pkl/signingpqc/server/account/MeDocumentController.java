@@ -1,17 +1,12 @@
 package id.pkl.signingpqc.server.account;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.time.Instant;
 
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,7 +30,6 @@ import id.pkl.signingpqc.server.VerifyService;
 @RequestMapping("/api/me")
 public class MeDocumentController {
 
-    public static final String SAVED_PATH = "X-Saved-Path";
     /** TSA dengan sisa masa berlaku terpanjang dan algoritma yang tetap aman (spesifikasi 6.8). */
     static final String RENEW_TSA = "mldsa";
 
@@ -58,8 +52,8 @@ public class MeDocumentController {
         this.tsa = tsa;
     }
 
-    @PostMapping(value = "/sign", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<byte[]> sign(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
+    @PostMapping(value = "/sign", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SavedDocument sign(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
             @RequestPart("file") MultipartFile file, @RequestParam(defaultValue = "1") int page,
             @RequestParam(required = false) Float x, @RequestParam(required = false) Float y,
             @RequestParam(required = false) Float width, @RequestParam(required = false) Float height,
@@ -82,7 +76,7 @@ public class MeDocumentController {
         Path saved = OutputFolder.save(Path.of(account.outputDir()), file.getOriginalFilename(), "-ttd", signed);
         history.add(accountId, new HistoryStore.Entry(saved.getFileName().toString(), "Ditandatangani", Instant.now(),
                 "SAH", saved.toString()));
-        return pdf(signed, saved);
+        return SavedDocument.of(signed, saved);
     }
 
     /** Verifikasi untuk pengguna: tanpa waktu simulasi, dicatat di riwayat. */
@@ -97,8 +91,8 @@ public class MeDocumentController {
     }
 
     /** Perpanjangan keabsahan dengan TSA ML-DSA; hanya bila hasil verifikasi menyarankannya. */
-    @PostMapping(value = "/renew", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<byte[]> renew(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
+    @PostMapping(value = "/renew", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SavedDocument renew(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
             @RequestPart("file") MultipartFile file) throws IOException, GeneralSecurityException {
         Account account = store.byId(accountId).orElseThrow(() -> ApiException.notFound("Akun tidak ditemukan"));
         byte[] pdf = RequestInputs.pdf(file);
@@ -111,7 +105,7 @@ public class MeDocumentController {
         Path saved = OutputFolder.save(Path.of(account.outputDir()), file.getOriginalFilename(), "-diperpanjang", renewed);
         history.add(accountId, new HistoryStore.Entry(saved.getFileName().toString(), "Diperpanjang", Instant.now(),
                 "SAH", saved.toString()));
-        return pdf(renewed, saved);
+        return SavedDocument.of(renewed, saved);
     }
 
     private static String displayName(MultipartFile file) {
@@ -119,14 +113,14 @@ public class MeDocumentController {
         return name.substring(name.replace('\\', '/').lastIndexOf('/') + 1);
     }
 
-    static ResponseEntity<byte[]> pdf(byte[] body, Path saved) {
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment().filename(saved.getFileName().toString(), StandardCharsets.UTF_8)
-                                .build().toString())
-                .header(SAVED_PATH, URLEncoder.encode(saved.toString(), StandardCharsets.UTF_8).replace("+", "%20"))
-                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, SAVED_PATH)
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(body);
+    /**
+     * Hasil tanda tangan atau perpanjangan. Sengaja JSON, bukan berkas PDF: pengelola unduhan di browser (misalnya
+     * IDM) merebut jawaban application/pdf dan memutus permintaan aplikasi (T-015 temuan 7).
+     */
+    public record SavedDocument(String fileName, String savedPath, String pdfBase64) {
+        static SavedDocument of(byte[] pdf, Path saved) {
+            return new SavedDocument(saved.getFileName().toString(), saved.toString(),
+                    java.util.Base64.getEncoder().encodeToString(pdf));
+        }
     }
 }

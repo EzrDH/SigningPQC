@@ -130,14 +130,18 @@ Aturan `.viewer` dan `.av` sempat hilang karena saringan kelas kerangka mockup i
 - **Perbaikan.** `src/api/client.ts` kini menampilkan "Server belum berjalan atau tidak bisa dihubungi. Jalankan backend, lalu coba lagi." untuk 502, 503, atau 504 tanpa pesan JSON, dan untuk `fetch` yang gagal (status 0). Pesan dari backend yang berupa JSON tetap diutamakan.
 - **Uji.** Empat uji baru di `client.test.ts` (502, 503, 504, dan jaringan gagal) gagal sebelum perbaikan. Sesudah perbaikan, seluruh frontend lolos 43/43 dan `npm run build` berhasil.
 
-### 7. "NetworkError when attempting to fetch resource" saat menekan Tandatangani (sebagian diperbaiki, penyebab utama masih dikonfirmasi)
-- **Gejala.** Pada uji manual di laptop (Firefox), dialog konfirmasi passphrase menampilkan "NetworkError when attempting to fetch resource." setelah tombol Tandatangani ditekan. Bersamaan dengan itu, browser membuka halaman web IDM (Internet Download Manager).
-- **Bukti dari log backend.** Satu kali tekan menghasilkan 6 galat `MultipartException ... MalformedStreamException: Stream ended unexpectedly` dalam selang sekitar 3 detik. Unggahan terputus di tengah jalan, jadi backend tidak pernah memproses tanda tangan. Tidak ada galat ukuran, memori, TSA, atau CRL. Ukuran PDF sekitar 175 KB, jauh di bawah batas 50 MB. Unggahan multipart 180 KB lewat proxy Vite maupun langsung ke backend berhasil diproses (401 tanpa token) dalam waktu di bawah 0,03 detik.
-- **Dugaan penyebab.**
-  1. Ekstensi IDM menyadap permintaan, memutusnya, lalu mengirim ulang beberapa kali. Ini cocok dengan beberapa permintaan yang datang hampir bersamaan dan dengan halaman IDM yang terbuka.
-  2. Unggahan memakai `File` yang menunjuk ke berkas di disk. Bila berkas itu dibuka atau dikunci aplikasi lain, Firefox bisa berhenti membacanya di tengah unggahan.
-- **Perbaikan untuk dugaan 2.** `stores/document.ts` kini menyimpan salinan berkas di memori (`new File([bytes], ...)`), sehingga tanda tangan dan verifikasi tidak lagi membaca berkas di disk. Uji `document.test.ts` (2 uji) gagal sebelum perbaikan. Sesudahnya frontend lolos 45/45.
-- **Untuk dugaan 1.** Kecualikan `127.0.0.1` dan `localhost` di IDM (Options, File types, "Don't start downloading automatically from the following sites"), atau coba dengan browser tanpa ekstensi IDM. Hasil uji ulang akan dicatat di sini.
+### 7. "NetworkError when attempting to fetch resource" saat menekan Tandatangani (diperbaiki)
+- **Gejala.** Pada uji manual di laptop (Firefox), dialog konfirmasi passphrase menampilkan "NetworkError when attempting to fetch resource." setelah tombol Tandatangani ditekan. Browser lalu membuka halaman web IDM (Internet Download Manager), kemudian muncul dialog "IDM browser integration".
+- **Penyebab.** Ekstensi IDM di browser. Backend sudah menandatangani dan menyimpan berkas (`...-ttd.pdf`, tersimpan pukul 15:23:43), lalu membalas dengan berkas PDF (`application/pdf`). IDM merebut balasan PDF itu sebagai unduhan dan memutus permintaan di browser. Sesudah itu IDM mencoba mengunduh ulang URL yang sama tanpa isi kiriman yang lengkap, sehingga log backend mencatat 6 galat `MalformedStreamException: Stream ended unexpectedly` pada pukul 15:23:46 sampai 15:23:49. Percobaan ulang itu tidak menghasilkan tanda tangan baru.
+- **Perbaikan.**
+  - `/api/me/sign` dan `/api/me/renew` kini membalas JSON `{fileName, savedPath, pdfBase64}`, bukan berkas PDF, sehingga pengelola unduhan tidak ikut campur. Header `X-Saved-Path` tidak dipakai lagi.
+  - Layar Tandatangani membaca `savedPath`. Layar Verifikasi mengubah `pdfBase64` menjadi dokumen baru setelah perpanjangan (`lib/saved.ts`).
+  - Sebagai pengaman tambahan, `stores/document.ts` menyimpan salinan berkas di memori, sehingga unggahan tidak bergantung pada berkas di disk.
+- **Uji (gagal sebelum perbaikan).**
+  - `AccountApiTest` (`tandaTanganVisibleTersimpan`, `tandaTanganKeduaTidakMenimpa`, `invisibleTanpaWidgetTampak`) dan `RenewApiTest.perpanjangMemakaiTsaMlDsa` kini mewajibkan jawaban `application/json`.
+  - `saved.test.ts` dan `document.test.ts` di frontend.
+  - Sesudah perbaikan: backend 145/145, frontend 46/46, dan `npm run build` berhasil.
+- **Sementara di laptop.** Sebelum perbaikan ini ditarik, matikan "IDM Integration Module" di `about:addons` atau kecualikan `127.0.0.1` di IDM.
 
 ## Tindak lanjut
 - ~~Review akhir seluruh cabang `aplikasi-pengguna`~~ selesai, temuannya sudah diperbaiki.

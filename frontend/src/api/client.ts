@@ -63,7 +63,7 @@ export const api = {
   async putJson<T>(path: string, body: unknown): Promise<T> {
     return (await request(path, json('PUT', body))).json() as Promise<T>
   },
-  /** Respons mentah, misalnya PDF beserta header X-Saved-Path. */
+  /** Respons mentah; pemanggil membaca isinya sendiri (misalnya JSON hasil tanda tangan). */
   postForm(path: string, form: FormData): Promise<Response> {
     return request(path, { method: 'POST', body: form })
   },

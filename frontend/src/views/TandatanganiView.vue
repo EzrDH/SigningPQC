@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 import PdfViewer, { type PageInfo } from '../components/PdfViewer.vue'
 import SpecimenBox from '../components/SpecimenBox.vue'
 import { api } from '../api/client'
+import type { SavedDocument } from '../api/types'
 import {
   MIN_HEIGHT_PT,
   MIN_WIDTH_PT,
@@ -95,9 +96,8 @@ async function sign(secret: string) {
   }
   form.append(settings.me?.confirmMethod === 'PASSPHRASE' ? 'passphrase' : 'code', secret)
   try {
-    const response = await api.postForm('/api/me/sign', form)
-    const header = response.headers.get('X-Saved-Path')
-    savedPath.value = header ? decodeURIComponent(header) : 'folder keluaran'
+    const saved = (await (await api.postForm('/api/me/sign', form)).json()) as SavedDocument
+    savedPath.value = saved.savedPath
     confirming.value = false
   } catch (e) {
     confirmError.value = e instanceof Error ? e.message : 'Tanda tangan gagal'

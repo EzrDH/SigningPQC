@@ -88,15 +88,15 @@ class RenewApiTest {
                 List.of("code", Totp.code(secret, clock.instant().getEpochSecond() / 30)));
         assertEquals(200, signed.statusCode(), new String(signed.body(), StandardCharsets.UTF_8));
 
-        HttpResponse<byte[]> renewed = api.multipart("POST", "/api/me/renew", token, signed.body(), "surat-ttd.pdf",
+        HttpResponse<byte[]> renewed = api.multipart("POST", "/api/me/renew", token, AccountApiTest.signedPdf(signed),
+                "surat-ttd.pdf",
                 "application/pdf", List.of());
         assertEquals(200, renewed.statusCode(), new String(renewed.body(), StandardCharsets.UTF_8));
-        Path saved = Path.of(URLDecoder.decode(renewed.headers().firstValue("X-Saved-Path").orElseThrow(),
-                StandardCharsets.UTF_8));
+        Path saved = AccountApiTest.savedPath(renewed);
         assertEquals("surat-ttd-diperpanjang.pdf", saved.getFileName().toString());
         assertTrue(Files.exists(saved));
 
-        HttpResponse<byte[]> verified = api.multipart("POST", "/api/me/verify", token, renewed.body(), "x.pdf",
+        HttpResponse<byte[]> verified = api.multipart("POST", "/api/me/verify", token, AccountApiTest.signedPdf(renewed), "x.pdf",
                 "application/pdf", List.of());
         JsonNode validation = json.readTree(new String(verified.body(), StandardCharsets.UTF_8)).get("validation");
         assertEquals("SAH", validation.get("status").asString(), validation.toString());
