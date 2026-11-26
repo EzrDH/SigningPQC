@@ -1,7 +1,7 @@
 /* Token dan komponen diambil dari mockup v7 (docs/superpowers/specs/2026-11-26-aplikasi-pengguna-mockup.html).
    Putih, tinta #0e1726, biru #0f3d91, tint #eef3fc, hijau #13804a hanya untuk status sah.
    Huruf Plus Jakarta Sans 400-700. */
-:root{color-scheme:light dark;--bg:light-dark(#eef1f6,#0a0f1a);--app:light-dark(#fff,#111827);--ink:light-dark(#0e1726,#e6ebf3);--mut:light-dark(#5d6a7e,#9aa6b8);--line:light-dark(#e3e8ef,#253045);--soft:light-dark(#f6f8fb,#162033);--pri:light-dark(#0f3d91,#7fa6f0);--tint:light-dark(#eef3fc,#16264a);--ok:light-dark(#13804a,#4fd08b);--okbg:light-dark(#eaf6ef,#10301f);--bad:light-dark(#b4232c,#ff7b86)}
+:root{color-scheme:light dark;--bg:light-dark(#eef1f6,#0a0f1a);--app:light-dark(#fff,#111827);--ink:light-dark(#0e1726,#e6ebf3);--mut:light-dark(#5d6a7e,#9aa6b8);--line:light-dark(#e3e8ef,#253045);--soft:light-dark(#f6f8fb,#162033);--pri:light-dark(#0f3d91,#7fa6f0);--tint:light-dark(#eef3fc,#16264a);--ok:light-dark(#13804a,#4fd08b);--okbg:light-dark(#eaf6ef,#10301f);--bad:light-dark(#b4232c,#ff7b86);--warn:light-dark(#9a6700,#e3b341);--warnbg:light-dark(#fff8e5,#2e2410)}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
 [hidden]{display:none!important}
@@ -149,3 +149,12 @@ input[type=text]:focus,input[type=password]:focus{border-color:var(--pri);outlin
 @media(max-width:900px){.work{grid-template-columns:minmax(0,1fr)}.panel{border-left:0;border-top:1px solid var(--line)}}
 @media(max-width:600px){.body{padding:18px 16px}.work{margin:-18px -16px}.top-nav{gap:12px;padding:0 12px}.kv{grid-template-columns:minmax(0,1fr)}.kv dt{margin-top:6px}.hist div{grid-template-columns:minmax(0,1fr) auto}.hist div span:nth-child(2){display:none}}
 @media(prefers-reduced-motion:reduce){.act{transition:none}}
+.pdf-host{width:100%;display:flex;flex-direction:column;align-items:center;gap:12px}
+.pager{display:flex;gap:12px;align-items:center;font-size:14px;color:var(--mut)}
+.pager .btn{min-height:38px;padding:6px 14px}
+.pdf-page .spec{min-height:0;padding:4px 6px}
+.spec img{max-height:100%;max-width:100%}
+.spec.dragging{cursor:grabbing}
+.spec .grip{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;border-radius:4px;background:#0f3d91;border:2px solid #fff;cursor:nwse-resize;touch-action:none}
+.spec:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
+.drop .err{color:var(--bad)}
