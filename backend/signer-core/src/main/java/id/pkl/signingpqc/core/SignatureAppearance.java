@@ -1,5 +1,6 @@
 package id.pkl.signingpqc.core;
 
+import java.awt.geom.AffineTransform;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -43,12 +44,25 @@ final class SignatureAppearance {
         if (visible.pageIndex() < 0 || visible.pageIndex() >= document.getNumberOfPages()) {
             throw new IllegalArgumentException("Halaman " + (visible.pageIndex() + 1) + " tidak ada di dokumen");
         }
-        PDRectangle mediaBox = document.getPage(visible.pageIndex()).getMediaBox();
+        PDPage page = document.getPage(visible.pageIndex());
+        PDRectangle mediaBox = page.getMediaBox();
         float lowerLeftY = mediaBox.getHeight() - visible.yFromTop() - visible.height();
-        if (visible.x() < 0 || lowerLeftY < 0 || visible.x() + visible.width() > mediaBox.getWidth()) {
+        if (visible.x() < 0 || visible.yFromTop() < 0 || lowerLeftY < 0
+                || visible.x() + visible.width() > mediaBox.getWidth()) {
             throw new IllegalArgumentException("Kotak tanda tangan keluar dari halaman");
         }
+        boolean turned = quarterTurns(page) % 2 == 1;
+        float shownWidth = turned ? visible.height() : visible.width();
+        float shownHeight = turned ? visible.width() : visible.height();
+        if (!VisibleSignature.fitsMinimum(shownWidth, shownHeight)) {
+            throw new IllegalArgumentException("Kotak tanda tangan minimal 120 x 60 point");
+        }
         return new PDRectangle(visible.x(), lowerLeftY, visible.width(), visible.height());
+    }
+
+    /** /Rotate halaman dalam kelipatan 90 derajat searah jarum jam (0 sampai 3). */
+    static int quarterTurns(PDPage page) {
+        return Math.floorMod(page.getRotation(), 360) / 90;
     }
 
     static List<String> lines(SignatureDetails details, VisibleSignature visible, Calendar signDate,
@@ -68,7 +82,9 @@ final class SignatureAppearance {
     static InputStream template(PDDocument source, VisibleSignature visible, PDRectangle rect, List<String> lines)
             throws IOException {
         try (PDDocument template = new PDDocument()) {
-            PDPage page = new PDPage(source.getPage(visible.pageIndex()).getMediaBox());
+            PDPage sourcePage = source.getPage(visible.pageIndex());
+            int turns = quarterTurns(sourcePage);
+            PDPage page = new PDPage(sourcePage.getMediaBox());
             template.addPage(page);
             PDAcroForm acroForm = new PDAcroForm(template);
             template.getDocumentCatalog().setAcroForm(acroForm);
@@ -83,7 +99,16 @@ final class SignatureAppearance {
             PDFormXObject form = new PDFormXObject(new PDStream(template));
             form.setResources(new PDResources());
             form.setFormType(1);
-            form.setBBox(new PDRectangle(rect.getWidth(), rect.getHeight()));
+            // Isi digambar dalam orientasi yang tampil di layar. Pada halaman berotasi, Matrix memutar isi berlawanan
+            // arah /Rotate sehingga setelah penampil memutar halaman, spesimen dan teks tampil tegak. Penampil
+            // memetakan BBox yang sudah diputar ke Rect (ISO 32000-1 12.5.5), jadi ukurannya pas tanpa skala.
+            boolean turned = turns % 2 == 1;
+            float width = turned ? rect.getHeight() : rect.getWidth();
+            float height = turned ? rect.getWidth() : rect.getHeight();
+            form.setBBox(new PDRectangle(width, height));
+            if (turns != 0) {
+                form.setMatrix(AffineTransform.getQuadrantRotateInstance(turns));
+            }
 
             PDAppearanceDictionary appearance = new PDAppearanceDictionary();
             appearance.getCOSObject().setDirect(true);
@@ -94,10 +119,10 @@ final class SignatureAppearance {
             try (PDPageContentStream content = new PDPageContentStream(template, stream)) {
                 byte[] specimen = visible.specimenPng();
                 if (specimen != null) {
-                    drawSpecimen(content, PDImageXObject.createFromByteArray(template, specimen, "spesimen"),
-                            rect.getWidth(), rect.getHeight());
+                    drawSpecimen(content, PDImageXObject.createFromByteArray(template, specimen, "spesimen"), width,
+                            height);
                 } else {
-                    draw(content, rect.getWidth(), rect.getHeight(), lines);
+                    draw(content, width, height, lines);
                 }
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();

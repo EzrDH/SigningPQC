@@ -169,6 +169,88 @@ class VisibleSignatureTest {
         assertTrue(e instanceof java.io.IOException || e instanceof IllegalArgumentException, e.toString());
     }
 
+    /**
+     * Halaman ber-/Rotate 90 (umum pada hasil pindai lanskap). Kotak yang tampil di layar 180 x 75 di posisi
+     * (500, 400) setara kotak halaman asli x=400, yFromTop=162, 75 x 180; pada rotasi 270 setara x=120, yFromTop=500
+     * (lihat frontend/src/lib/coords.ts). Spesimen
+     * harus tampil tegak (lebar lebih besar dari tinggi) di posisi itu saat halaman dirender dengan rotasinya.
+     */
+    @org.junit.jupiter.params.ParameterizedTest(name = "rotasi {0}")
+    @org.junit.jupiter.params.provider.CsvSource({"90, 400, 162", "270, 120, 500"})
+    void halamanBerotasiSpesimenTampilTegakDiPosisiYangDipilih(int rotation, float boxX, float boxYFromTop)
+            throws Exception {
+        // Separuh kiri hitam, separuh kanan putih: membedakan tegak dari terbalik atau tercermin.
+        BufferedImage specimen = new BufferedImage(400, 160, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = specimen.createGraphics();
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, 400, 160);
+        g.setColor(java.awt.Color.BLACK);
+        g.fillRect(0, 0, 200, 160);
+        g.dispose();
+        java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+        ImageIO.write(specimen, "png", png);
+
+        byte[] pdf;
+        try (PDDocument document = Loader.loadPDF(SamplePdf.create("Surat Lanskap", "Halaman berotasi 90."));
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            document.getPage(0).setRotation(rotation);
+            document.save(out);
+            pdf = out.toByteArray();
+        }
+        VisibleSignature box = new VisibleSignature(0, boxX, boxYFromTop, 75, 180, List.of(), png.toByteArray());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of(IDENTITY.commonName(), "Uji"),
+                box, null);
+        assertTrue(new PdfSignatureVerifier().verify(out).get(0).valid());
+
+        try (PDDocument document = Loader.loadPDF(out)) {
+            BufferedImage image = new PDFRenderer(document).renderImage(0, 1f);
+            assertTrue(image.getWidth() > image.getHeight(), "halaman tampil lanskap");
+            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = -1, maxY = -1;
+            for (int x = 480; x < 700; x++) {
+                for (int y = 380; y < 495; y++) {
+                    int rgb = image.getRGB(x, y);
+                    if (((rgb >> 16) & 0xff) + ((rgb >> 8) & 0xff) + (rgb & 0xff) < 150) {
+                        minX = Math.min(minX, x);
+                        maxX = Math.max(maxX, x);
+                        minY = Math.min(minY, y);
+                        maxY = Math.max(maxY, y);
+                    }
+                }
+            }
+            assertTrue(maxX > 0, "spesimen harus tergambar di dalam kotak yang dipilih");
+            int width = maxX - minX + 1;
+            int height = maxY - minY + 1;
+            // Kotak 180 x 75, gambar 400 x 160 diskalakan 0,45 menjadi 180 x 72; separuh kirinya 90 x 72.
+            assertEquals(90, width, 3, "separuh hitam selebar 90 (tegak, bukan 72 bila masih miring)");
+            assertEquals(72, height, 3, "tinggi 72");
+            assertEquals(500, minX, 2, "separuh hitam di kiri kotak (tidak terbalik)");
+            assertTrue(minY >= 400 && maxY <= 475, "di dalam kotak vertikal: " + minY + ".." + maxY);
+        }
+    }
+
+    @Test
+    void halamanBerotasiUkuranMinimalMengikutiTampilan() throws Exception {
+        byte[] pdf;
+        try (PDDocument document = Loader.loadPDF(SamplePdf.create("Surat Lanskap", "Kecil."));
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            document.getPage(0).setRotation(90);
+            document.save(out);
+            pdf = out.toByteArray();
+        }
+        // 180 x 75 di halaman asli tampil 75 x 180 di layar: lebar tampilan di bawah 120, ditolak.
+        VisibleSignature tall = new VisibleSignature(0, 100, 100, 180, 75, List.of());
+        assertThrows(IllegalArgumentException.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
+                SignatureDetails.of("Uji", "Uji"), tall, null));
+    }
+
+    @Test
+    void posisiDiAtasTepiHalamanDitolak() throws Exception {
+        byte[] pdf = SamplePdf.create("Surat Uji", "Posisi salah.");
+        VisibleSignature above = new VisibleSignature(0, 40, -10, 180, 75, List.of());
+        assertThrows(IllegalArgumentException.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
+                SignatureDetails.of("Uji", "Uji"), above, null));
+    }
+
     private static void collect(PDFormXObject form, List<PDImageXObject> images, StringBuilder content, int depth)
             throws java.io.IOException {
         if (depth > 6) {

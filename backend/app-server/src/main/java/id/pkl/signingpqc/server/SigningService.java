@@ -79,23 +79,59 @@ public class SigningService {
     }
 
     /**
-     * Kotak tanda tangan di halaman {@code page} (mulai 1). Posisi dan ukuran dalam point dengan y dari atas; yang
-     * kosong memakai bawaan 180 x 75 point di kanan bawah dengan margin 40.
+     * Kotak tanda tangan di halaman {@code page} (mulai 1). Posisi dan ukuran dalam point dengan y dari atas, pada
+     * koordinat halaman tanpa /Rotate (seperti {@link VisibleSignature}); yang kosong memakai bawaan 180 x 75 point di
+     * kanan bawah halaman sebagaimana tampil, dengan margin 40.
      */
     public VisibleSignature placement(byte[] pdf, int page, Float x, Float y, Float width, Float height,
+            byte[] specimenPng) throws IOException {
+        return placementOf(pdf, page, x, y, width, height, specimenPng);
+    }
+
+    static VisibleSignature placementOf(byte[] pdf, int page, Float x, Float y, Float width, Float height,
             byte[] specimenPng) throws IOException {
         try (PDDocument document = Loader.loadPDF(pdf)) {
             if (page < 1 || page > document.getNumberOfPages()) {
                 throw ApiException.badRequest("Halaman " + page + " tidak ada (dokumen punya "
                         + document.getNumberOfPages() + " halaman)");
             }
-            PDRectangle box = document.getPage(page - 1).getMediaBox();
-            float w = width != null ? width : 180;
-            float h = height != null ? height : 75;
-            float left = x != null ? x : box.getWidth() - w - 40;
-            float top = y != null ? y : box.getHeight() - h - 40;
+            var pdPage = document.getPage(page - 1);
+            PDRectangle box = pdPage.getMediaBox();
+            int turns = Math.floorMod(pdPage.getRotation(), 360) / 90;
+            boolean turned = turns % 2 == 1;
+            float pageW = box.getWidth();
+            float pageH = box.getHeight();
+            // Ukuran di halaman asli: bila tidak diberikan, 180 x 75 sebagaimana tampil.
+            float w = width != null ? width : turned ? 75 : 180;
+            float h = height != null ? height : turned ? 180 : 75;
+            float left = x != null ? x : 0;
+            float top = y != null ? y : 0;
+            if (x == null || y == null) {
+                float shownW = turned ? h : w;
+                float shownH = turned ? w : h;
+                float dispW = turned ? pageH : pageW;
+                float dispH = turned ? pageW : pageH;
+                float[] a = toPage(dispW - shownW - 40, dispH - shownH - 40, turns, pageW, pageH);
+                float[] b = toPage(dispW - 40, dispH - 40, turns, pageW, pageH);
+                if (x == null) {
+                    left = Math.min(a[0], b[0]);
+                }
+                if (y == null) {
+                    top = Math.min(a[1], b[1]);
+                }
+            }
             return new VisibleSignature(page - 1, left, top, w, h, List.of(), specimenPng);
         }
+    }
+
+    /** Titik tampilan (dx, dy) ke titik halaman asli (u, v dari atas); sama dengan frontend/src/lib/coords.ts. */
+    private static float[] toPage(float dx, float dy, int turns, float pageW, float pageH) {
+        return switch (turns) {
+            case 1 -> new float[] {dy, pageH - dx};
+            case 2 -> new float[] {pageW - dx, pageH - dy};
+            case 3 -> new float[] {pageW - dy, dx};
+            default -> new float[] {dx, dy};
+        };
     }
 
     static boolean looksLikePdf(byte[] data) {
