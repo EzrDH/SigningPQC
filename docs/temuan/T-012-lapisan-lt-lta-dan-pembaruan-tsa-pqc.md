@@ -121,7 +121,8 @@ ML-DSA ditandai tidak sah, sama seperti tanda tangan ML-DSA di T-011.
 ### Perbaikan hasil review akhir
 Review seluruh branch menemukan empat celah. Masing-masing dibuktikan dulu dengan uji yang gagal, lalu diperbaiki.
 Setelah perbaikan, seluruh uji lolos: **81 dari 81** (signer-core 7, pki-test 62, app-server 12). Angka ini dari
-container dengan JDK 21. Hasil JDK 25 di laptop menyusul.
+container dengan JDK 21, lalu diulang di laptop dengan JDK 25 dan hasilnya sama (81 lolos). Uji silang OpenSSL
+tetap 33 dari 33 sesuai.
 
 | Temuan | Masalah sebelum diperbaiki | Perbaikan | Uji pembukti |
 |---|---|---|---|
