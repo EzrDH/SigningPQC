@@ -56,7 +56,7 @@ Prototipe Vue + Java dengan alur TTE hybrid yang berfungsi benar (tanda tangan, 
 
 Setiap lapisan ditambahkan sebagai incremental update, jadi isi sebelumnya tidak pernah diubah. Formatnya mengikuti PAdES (ETSI EN 319 142) sampai tingkat B-LTA.
 
-Dokumen dinyatakan sah hybrid hanya jika tanda tangan RSA dan ML-DSA keduanya sah.
+Dokumen dinyatakan sah hybrid hanya jika tanda tangan RSA dan ML-DSA keduanya sah. Tanda tangan yang sah tetapi tidak berpasangan RSA dan ML-DSA tidak disebut tidak sah, melainkan "tidak memenuhi kebijakan hybrid". Status "tidak sah" hanya dipakai bila ada bukti negatif: isi berubah, tanda tangan tidak cocok, atau sertifikat dicabut. Penerbit yang tidak dikenal menghasilkan "tidak dapat dibuktikan" (ETSI EN 319 102-1, T-017).
 
 ## 7. Fitur utama
 

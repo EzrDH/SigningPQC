@@ -29,7 +29,7 @@ const REASON: Record<string, string> = {
   DICABUT_SETELAH_DITANDATANGANI: 'Sertifikat dicabut setelah ditandatangani',
   SERTIFIKAT_TIDAK_BERLAKU: 'Sertifikat tidak berlaku pada waktu penandatanganan',
   RANTAI_TIDAK_SAH: 'Rantai sertifikat tidak sah',
-  ROOT_TIDAK_DIPERCAYA: 'Penerbit sertifikat tidak dipercaya',
+  ROOT_TIDAK_DIPERCAYA: 'Penerbit sertifikat tidak dikenal oleh aplikasi ini',
   STATUS_PENCABUTAN_TIDAK_DIKETAHUI: 'Status pencabutan sertifikat tidak bisa dipastikan',
   DATA_VALIDASI_TIDAK_ADA: 'Data validasi tidak tersimpan di dokumen',
   TSA_KEDALUWARSA_TANPA_PEMBARUAN: 'Bukti waktu sudah kedaluwarsa dan tidak diperbarui',
@@ -107,6 +107,11 @@ export function describeResult(res: VerifyResponse): ResultDescription {
     tone = 'ok'
     title = 'Dokumen sah'
     subtitle = codes.length ? codes.map(reasonText).join('. ') : 'Tanda tangan asli, isi tidak berubah'
+  } else if (v.status === 'TIDAK_DAPAT_DIBUKTIKAN' && !v.hybridComplete && v.layers.every((l) => l.status === 'SAH')) {
+    // KF-23: setiap tanda tangan sah, tetapi tidak berpasangan RSA dan ML-DSA (T-017).
+    tone = 'warn'
+    title = 'Tidak memenuhi kebijakan hybrid'
+    subtitle = 'Tanda tangan sah, tetapi tidak berpasangan RSA dan ML-DSA'
   } else if (v.status === 'TIDAK_DAPAT_DIBUKTIKAN') {
     tone = 'warn'
     title = 'Keabsahan tidak dapat dibuktikan'
@@ -122,7 +127,11 @@ export function describeResult(res: VerifyResponse): ResultDescription {
   ]
   if (signedAt) points.push({ text: formatDateTimeWib(signedAt), ok: true })
   points.push(change ? { text: reasonText(change), ok: false } : { text: 'Isi tidak berubah sejak ditandatangani', ok: true })
-  if (v.hybridComplete) points.push({ text: 'Tanda tangan tahan komputer kuantum (ML-DSA)', ok: true })
+  if (v.hybridComplete) {
+    points.push({ text: 'Tanda tangan tahan komputer kuantum (ML-DSA)', ok: true })
+  } else if (!res.signatures.some((s) => s.signatureAlgorithm.startsWith('ML-DSA'))) {
+    points.push({ text: 'Tanpa tanda tangan tahan komputer kuantum (ML-DSA)', ok: false })
+  }
 
   return {
     tone,

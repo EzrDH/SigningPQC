@@ -191,7 +191,9 @@ public final class DocumentValidator {
         if (layers.stream().anyMatch(l -> l.status() == OverallStatus.TIDAK_SAH)) {
             status = OverallStatus.TIDAK_SAH;
         } else if (!hybridComplete) {
-            status = OverallStatus.TIDAK_SAH;
+            // KF-23: "sah hybrid" hanya untuk RSA + ML-DSA. Tanda tangan yang sah tetapi tidak lengkap pasangannya
+            // tidak memenuhi kebijakan hybrid; tidak ada bukti negatif, jadi bukan TIDAK_SAH (T-017).
+            status = OverallStatus.TIDAK_DAPAT_DIBUKTIKAN;
         } else if (layers.stream().anyMatch(l -> l.status() == OverallStatus.TIDAK_DAPAT_DIBUKTIKAN)) {
             status = OverallStatus.TIDAK_DAPAT_DIBUKTIKAN;
         } else {
@@ -373,6 +375,8 @@ public final class DocumentValidator {
                 eval.fail(chain.code(), OverallStatus.TIDAK_DAPAT_DIBUKTIKAN, chain.detail());
                 return true;
             case DATA_VALIDASI_TIDAK_ADA:
+            case ROOT_TIDAK_DIPERCAYA:
+                // ETSI EN 319 102-1: rantai tanpa trust anchor berstatus INDETERMINATE, bukan gagal (T-017).
                 eval.fail(chain.code(), OverallStatus.TIDAK_DAPAT_DIBUKTIKAN, chain.detail());
                 return true;
             case SERTIFIKAT_TIDAK_BERLAKU:

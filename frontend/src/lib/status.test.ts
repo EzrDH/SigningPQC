@@ -124,4 +124,21 @@ describe('describeResult', () => {
   it('perpanjangan disarankan mengikuti renewalRecommended', () => {
     expect(describeResult(response('SAH', { renew: true })).canRenew).toBe(true)
   })
+
+  it('RSA sah tanpa ML-DSA: kuning, tidak memenuhi kebijakan hybrid (T-017)', () => {
+    const d = describeResult(response('TIDAK_DAPAT_DIBUKTIKAN', { warnings: ['TANDA_TANGAN_HYBRID_TIDAK_LENGKAP'] }))
+    expect(d.tone).toBe('warn')
+    expect(d.title).toBe('Tidak memenuhi kebijakan hybrid')
+    expect(d.subtitle).toBe('Tanda tangan sah, tetapi tidak berpasangan RSA dan ML-DSA')
+    expect(d.points).toContainEqual({ text: 'Tanpa tanda tangan tahan komputer kuantum (ML-DSA)', ok: false })
+  })
+
+  it('penerbit tidak dikenal: kuning dengan alasan yang jelas (T-017)', () => {
+    const d = describeResult(
+      response('TIDAK_DAPAT_DIBUKTIKAN', { codes: ['ROOT_TIDAK_DIPERCAYA'], warnings: ['TANDA_TANGAN_HYBRID_TIDAK_LENGKAP'] }),
+    )
+    expect(d.tone).toBe('warn')
+    expect(d.title).toBe('Keabsahan tidak dapat dibuktikan')
+    expect(d.subtitle).toContain('Penerbit sertifikat tidak dikenal oleh aplikasi ini')
+  })
 })

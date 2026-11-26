@@ -29,6 +29,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-014 | 26 Nov 2026 | Temuan | Spesimen pada halaman PDF berotasi: ukuran minimal, orientasi, dan posisi bawaan kini mengikuti /Rotate | Diperbaiki |
 | T-015 | 26 Nov 2026 | Pengujian | Antarmuka pengguna Vue: delapan layar sesuai mockup v7, 39 uji Vitest, alur lengkap di browser; bug logout saat kode salah diperbaiki | Lulus (container dan laptop) |
 | T-016 | 26 Nov 2026 | Temuan | Keamanan akun: penghitung penguncian dipisah per faktor (login tidak lagi mereset tebakan passphrase/TOTP) dan folder keluaran tidak boleh di dalam folder data | Diperbaiki |
+| T-017 | 26 Nov 2026 | Temuan | Status verifikasi mengikuti ETSI EN 319 102-1: penerbit tak dikenal menjadi "tidak dapat dibuktikan", tanda tangan sah tanpa pasangan RSA+ML-DSA menjadi "tidak memenuhi kebijakan hybrid" (kuning) | Diperbaiki |
 
 ## Templat
 
