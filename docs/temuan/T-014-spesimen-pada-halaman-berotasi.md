@@ -65,7 +65,7 @@ Halaman 180 derajat tidak menukar ukuran, tetapi tanpa Matrix isinya tampil terb
 
 ## Keterbatasan yang tersisa
 - Frontend memakai ukuran halaman dari pdf.js (`page.view`, yaitu CropBox), sedangkan backend memakai MediaBox. Pada PDF yang CropBox-nya lebih kecil atau bergeser dari MediaBox, posisi bisa meleset sebesar selisihnya. PDF hasil aplikasi kantor umumnya tidak punya CropBox berbeda.
-- Hasil visual di Adobe Acrobat Reader belum dicek. Rencananya dicek bersama tangkapan layar T-012.
+- Hasil visual di Adobe Acrobat Reader belum dicek. Rencananya dicek bersama tangkapan layar T-012. Uji browser T-015 sudah memastikan posisi dan orientasi spesimen pada render pdftoppm (Poppler) untuk halaman rotasi 90.
 
 ## Tindak lanjut
 Uji manual di Adobe Reader dengan satu PDF lanskap hasil pindai (rotasi 90) dilakukan pada tahap uji laptop.

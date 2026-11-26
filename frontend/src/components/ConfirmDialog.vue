@@ -3,7 +3,14 @@ import { nextTick, onMounted, ref } from 'vue'
 import OtpInput from './OtpInput.vue'
 import type { ConfirmMethod } from '../api/types'
 
-const props = defineProps<{ method: ConfirmMethod; error?: string | null; busy?: boolean; action?: string }>()
+const props = defineProps<{
+  method: ConfirmMethod
+  error?: string | null
+  busy?: boolean
+  title?: string
+  action?: string
+  busyLabel?: string
+}>()
 const emit = defineEmits<{ confirm: [value: string]; cancel: [] }>()
 
 const value = ref('')
@@ -29,7 +36,7 @@ onMounted(() => nextTick(() => dialog.value?.querySelector('input')?.focus()))
   <div class="modal on" @keydown.esc="emit('cancel')" @click.self="emit('cancel')">
     <form ref="dialog" class="dlg" role="dialog" aria-modal="true" aria-labelledby="cd-title" @submit.prevent="submit">
       <div>
-        <h2 id="cd-title">Konfirmasi tanda tangan</h2>
+        <h2 id="cd-title">{{ title ?? 'Konfirmasi tanda tangan' }}</h2>
         <p class="sub">
           {{ method === 'PASSPHRASE' ? 'Masukkan passphrase Anda.' : 'Masukkan kode dari aplikasi authenticator.' }}
         </p>
@@ -46,7 +53,7 @@ onMounted(() => nextTick(() => dialog.value?.querySelector('input')?.focus()))
       <div style="display: flex; gap: 10px">
         <button class="btn" type="button" @click="emit('cancel')">Batal</button>
         <button class="btn p" style="flex: 1" type="submit" :disabled="busy">
-          {{ busy ? 'Menandatangani…' : (action ?? 'Tandatangani') }}
+          {{ busy ? (busyLabel ?? 'Menandatangani…') : (action ?? 'Tandatangani') }}
         </button>
       </div>
     </form>

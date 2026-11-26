@@ -27,6 +27,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-012 | 25 Nov 2026 | Pengujian | Lapisan LTV (B-LT, B-LTA) dan pembaruan TSA sampai TSA ML-DSA: dokumen sah pada simulasi 2040 | Lulus (uji pembaca PDF menyusul) |
 | T-013 | 26 Nov 2026 | Pengujian | Akun pengguna, pembungkusan kunci passphrase/TOTP, dan tanda tangan B-LTA dari aplikasi (130 uji) | Lulus (JDK 25 menyusul) |
 | T-014 | 26 Nov 2026 | Temuan | Spesimen pada halaman PDF berotasi: ukuran minimal, orientasi, dan posisi bawaan kini mengikuti /Rotate | Diperbaiki |
+| T-015 | 26 Nov 2026 | Pengujian | Antarmuka pengguna Vue: delapan layar sesuai mockup v7, 35 uji Vitest, alur lengkap di browser; bug logout saat kode salah diperbaiki | Lulus (laptop menyusul) |
 
 ## Templat
 
