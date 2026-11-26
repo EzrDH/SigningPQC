@@ -62,8 +62,17 @@ public class PkiService {
     public record Revocation(String caId, String serialHex, Instant time, int reason) {
     }
 
+    /** {@code account} null atau false: penanda tangan uji biasa; true: milik akun (kunci tidak disimpan di sini). */
     public record SignerRecord(String id, String commonName, String title, String unit, Instant createdAt,
-            boolean revoked) {
+            boolean revoked, Boolean account) {
+
+        public boolean isAccount() {
+            return Boolean.TRUE.equals(account);
+        }
+    }
+
+    /** Penanda tangan akun yang baru diterbitkan; kuncinya hanya ada di memori dan dibungkus oleh pemanggil. */
+    public record AccountSigner(SignerRecord record, SignerPair pair) {
     }
 
     private final Path dataDir;
@@ -76,15 +85,23 @@ public class PkiService {
     private final Map<String, CertificateAuthority> cas = new LinkedHashMap<>();
     private final Map<String, SigningCredential> tsas = new LinkedHashMap<>();
     private final Map<String, SignerPair> signers = new LinkedHashMap<>();
+    /** Sertifikat penanda tangan akun: [RSA, ML-DSA]. Kuncinya tidak pernah ada di PkiService. */
+    private final Map<String, List<X509Certificate>> accountCertificates = new LinkedHashMap<>();
 
     public PkiService(@Value("${signingpqc.data-dir}") Path dataDir,
             @Value("${signingpqc.keystore-password}") String password,
-            @Value("${signingpqc.crl-base-url}") String crlBaseUrl, JsonMapper json) throws IOException {
+            @Value("${signingpqc.crl-base-url}") String crlBaseUrl, JsonMapper json,
+            @Value("${signingpqc.pki.auto-setup:false}") boolean autoSetup,
+            @Value("${signingpqc.pki.organization:SigningPQC Uji}") String organization)
+            throws IOException, GeneralSecurityException {
         this.dataDir = dataDir;
         this.password = password.toCharArray();
         this.json = json;
         this.factory = new TestPkiFactory(crlBaseUrl);
         load();
+        if (autoSetup && !ready()) {
+            setup(organization, false);
+        }
     }
 
     // --------------------------------------------------------------------------------- status
@@ -142,13 +159,10 @@ public class PkiService {
         TestPkiRevocationSource source = new TestPkiRevocationSource(cas.values(), factory, Clock.fixed(at, ZoneOffset.UTC));
         for (Revocation revocation : state.revocations()) {
             CertificateAuthority ca = cas.get(revocation.caId());
-            for (SignerPair pair : signers.values()) {
-                for (SigningCredential credential : List.of(pair.rsa(), pair.mlDsa())) {
-                    X509Certificate certificate = credential.certificate();
-                    if (ca != null && certificate.getSerialNumber().toString(16).equals(revocation.serialHex())
-                            && certificate.getIssuerX500Principal().equals(ca.certificate().getSubjectX500Principal())) {
-                        source.revoke(certificate, revocation.time());
-                    }
+            for (X509Certificate certificate : allSignerCertificates()) {
+                if (ca != null && certificate.getSerialNumber().toString(16).equals(revocation.serialHex())
+                        && certificate.getIssuerX500Principal().equals(ca.certificate().getSubjectX500Principal())) {
+                    source.revoke(certificate, revocation.time());
                 }
             }
         }
@@ -178,17 +192,44 @@ public class PkiService {
     }
 
     public synchronized SignerPair signer(String id) {
-        requireReady();
-        SignerPair pair = signers.get(id);
-        if (pair == null) {
-            throw ApiException.notFound("Penanda tangan '" + id + "' tidak ditemukan");
+        if (signerRecord(id).isAccount()) {
+            throw ApiException.conflict("Kunci penanda tangan akun hanya bisa dibuka lewat konfirmasi pengguna");
         }
-        return pair;
+        return signers.get(id);
     }
 
     public synchronized SignerRecord signerRecord(String id) {
-        signer(id);
-        return state.signers().stream().filter(s -> s.id().equals(id)).findFirst().orElseThrow();
+        requireReady();
+        return state.signers().stream().filter(s -> s.id().equals(id)).findFirst()
+                .orElseThrow(() -> ApiException.notFound("Penanda tangan '" + id + "' tidak ditemukan"));
+    }
+
+    /** Sertifikat penanda tangan akun: [RSA, ML-DSA]. */
+    public synchronized List<X509Certificate> accountCertificates(String id) {
+        List<X509Certificate> certificates = accountCertificates.get(id);
+        if (certificates == null) {
+            throw ApiException.notFound("Penanda tangan akun '" + id + "' tidak ditemukan");
+        }
+        return certificates;
+    }
+
+    /** Sertifikat penanda tangan apa pun (uji biasa atau akun): [RSA, ML-DSA]. */
+    public synchronized List<X509Certificate> signerCertificates(String id) {
+        if (signerRecord(id).isAccount()) {
+            return accountCertificates(id);
+        }
+        SignerPair pair = signers.get(id);
+        return List.of(pair.rsa().certificate(), pair.mlDsa().certificate());
+    }
+
+    private List<X509Certificate> allSignerCertificates() {
+        List<X509Certificate> all = new ArrayList<>();
+        for (SignerPair pair : signers.values()) {
+            all.add(pair.rsa().certificate());
+            all.add(pair.mlDsa().certificate());
+        }
+        accountCertificates.values().forEach(all::addAll);
+        return all;
     }
 
     public synchronized List<SignerRecord> signerRecords() {
@@ -212,8 +253,10 @@ public class PkiService {
         cas.clear();
         tsas.clear();
         signers.clear();
-        // Hanya berkas milik PKI uji yang dihapus, bukan seluruh folder data.
-        for (String name : List.of("ca", "tsa", "signers", STATE_FILE)) {
+        accountCertificates.clear();
+        // Hanya berkas milik PKI uji yang dihapus, bukan seluruh folder data. Akun ikut dihapus karena tanpa CA dan
+        // sertifikatnya akun tidak bisa dipakai lagi (lingkungan uji, data sintetis).
+        for (String name : List.of("ca", "tsa", "signers", "accounts", STATE_FILE)) {
             Path path = dataDir.resolve(name);
             if (Files.exists(path)) {
                 deleteRecursively(path);
@@ -259,30 +302,57 @@ public class PkiService {
         writeCredential("signers/" + id + "/rsa", pair.rsa());
         writeCredential("signers/" + id + "/mldsa", pair.mlDsa());
         SignerRecord record = new SignerRecord(id, identity.commonName(), identity.title(), identity.organizationalUnit(),
-                Instant.now(), false);
+                Instant.now(), false, null);
+        addRecord(record);
+        return record;
+    }
+
+    /**
+     * Penanda tangan milik akun: sertifikat tanpa jabatan dan unit, hanya sertifikat (.pem) yang ditulis ke disk.
+     * Kunci dikembalikan ke pemanggil untuk dibungkus dengan kunci akun.
+     */
+    public synchronized AccountSigner issueAccountSigner(String commonName) throws GeneralSecurityException, IOException {
+        requireReady();
+        if (commonName == null || commonName.isBlank()) {
+            throw ApiException.badRequest("Nama penanda tangan wajib diisi");
+        }
+        SignerIdentity identity = new SignerIdentity(commonName.strip(), null, null, state.organization());
+        SignerPair pair = factory.issueSignerPair(hierarchy(PkiFamily.RSA), hierarchy(PkiFamily.ML_DSA), identity);
+        String id = "akun-" + HexFormat.of().formatHex(random.generateSeed(4));
+        Path folder = dataDir.resolve("signers").resolve(id);
+        Files.createDirectories(folder);
+        Files.writeString(folder.resolve("rsa.pem"), Pem.certificates(pair.rsa().chain()));
+        Files.writeString(folder.resolve("mldsa.pem"), Pem.certificates(pair.mlDsa().chain()));
+        accountCertificates.put(id, List.of(pair.rsa().certificate(), pair.mlDsa().certificate()));
+        SignerRecord record = new SignerRecord(id, identity.commonName(), null, null, Instant.now(), false, true);
+        addRecord(record);
+        return new AccountSigner(record, pair);
+    }
+
+    private void addRecord(SignerRecord record) throws IOException {
         List<SignerRecord> list = new ArrayList<>(state.signers());
         list.add(record);
         state = new State(state.organization(), state.createdAt(), state.crlNumbers(), state.revocations(), list);
         saveState();
-        return record;
     }
 
     /** Mencabut kedua sertifikat penanda tangan (alasan keyCompromise). */
     public synchronized SignerRecord revoke(String id) throws IOException {
-        SignerPair pair = signer(id);
         SignerRecord current = signerRecord(id);
+        X509Certificate rsaCertificate = signerCertificates(id).get(0);
+        X509Certificate mlDsaCertificate = signerCertificates(id).get(1);
         if (current.revoked()) {
             throw ApiException.conflict("Penanda tangan '" + id + "' sudah dicabut");
         }
         List<Revocation> revocations = new ArrayList<>(state.revocations());
         Instant now = Instant.now();
         revocations.add(new Revocation(PkiFamily.RSA.slug() + "-intermediate",
-                pair.rsa().certificate().getSerialNumber().toString(16), now, CRLReason.keyCompromise));
+                rsaCertificate.getSerialNumber().toString(16), now, CRLReason.keyCompromise));
         revocations.add(new Revocation(PkiFamily.ML_DSA.slug() + "-intermediate",
-                pair.mlDsa().certificate().getSerialNumber().toString(16), now, CRLReason.keyCompromise));
+                mlDsaCertificate.getSerialNumber().toString(16), now, CRLReason.keyCompromise));
         List<SignerRecord> list = state.signers().stream()
                 .map(s -> s.id().equals(id) ? new SignerRecord(s.id(), s.commonName(), s.title(), s.unit(),
-                        s.createdAt(), true) : s)
+                        s.createdAt(), true, s.account()) : s)
                 .toList();
         state = new State(state.organization(), state.createdAt(), state.crlNumbers(), revocations, list);
         saveState();
@@ -342,6 +412,12 @@ public class PkiService {
                 }
             }
             for (SignerRecord record : loaded.signers()) {
+                if (record.isAccount()) {
+                    Path folder = dataDir.resolve("signers").resolve(record.id());
+                    accountCertificates.put(record.id(),
+                            List.of(readCertificate(folder.resolve("rsa.pem")), readCertificate(folder.resolve("mldsa.pem"))));
+                    continue;
+                }
                 SignerIdentity identity = new SignerIdentity(record.commonName(), record.title(), record.unit(),
                         loaded.organization());
                 signers.put(record.id(), new SignerPair(identity, readCredential("signers/" + record.id() + "/rsa"),
@@ -353,6 +429,7 @@ public class PkiService {
             cas.clear();
             tsas.clear();
             signers.clear();
+            accountCertificates.clear();
             state = null;
             LOG.warn("PKI uji di {} tidak dapat dimuat ({}). Buat ulang lewat POST /api/pki/setup?reset=true",
                     dataDir.toAbsolutePath(), e.getMessage());
@@ -369,6 +446,14 @@ public class PkiService {
         Files.createDirectories(p12.getParent());
         Files.write(p12, Pkcs12Credentials.write(credential, p12.getFileName().toString(), password));
         Files.writeString(dataDir.resolve(name + ".pem"), Pem.certificates(credential.chain()));
+    }
+
+    /** Sertifikat pertama (penanda tangan) dari berkas PEM rantai. */
+    private static X509Certificate readCertificate(Path pem) throws GeneralSecurityException, IOException {
+        try (var in = Files.newInputStream(pem)) {
+            return (X509Certificate) java.security.cert.CertificateFactory.getInstance("X.509")
+                    .generateCertificates(in).iterator().next();
+        }
     }
 
     private SigningCredential readCredential(String name) throws GeneralSecurityException, IOException {

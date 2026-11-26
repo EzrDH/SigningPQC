@@ -64,6 +64,7 @@ class RestApiTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("signingpqc.data-dir", DATA_DIR::toString);
+        registry.add("signingpqc.pki.auto-setup", () -> "false");
     }
 
     @LocalServerPort
@@ -203,7 +204,7 @@ class RestApiTest {
     @Order(7)
     void pkiTetapAdaSetelahDimuatUlang() throws Exception {
         PkiService reloaded = new PkiService(DATA_DIR, "uji-signingpqc", "http://127.0.0.1:" + port + "/api/pki/crl/",
-                json);
+                json, false, "SigningPQC Uji");
         assertTrue(reloaded.ready());
         assertEquals(1, reloaded.signerRecords().size());
         assertTrue(reloaded.signerRecord(signerId).revoked());

@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 import id.pkl.signingpqc.core.SignatureAlgorithm;
 import id.pkl.signingpqc.pki.CertificateAuthority;
 import id.pkl.signingpqc.pki.PkiFamily;
-import id.pkl.signingpqc.pki.SignerPair;
 
 /** REST PKI uji: membuat CA dan TSA, menerbitkan dan mencabut penanda tangan, CRL, dan sertifikat CA. */
 @RestController
@@ -129,9 +128,9 @@ public class PkiController {
     }
 
     private SignerInfo info(PkiService.SignerRecord record) {
-        SignerPair pair = pki.signer(record.id());
+        java.util.List<java.security.cert.X509Certificate> certificates = pki.signerCertificates(record.id());
         return new SignerInfo(record.id(), record.commonName(), record.title(), record.unit(), record.revoked(),
-                CertificateInfo.of(pair.rsa().certificate()), CertificateInfo.of(pair.mlDsa().certificate()));
+                CertificateInfo.of(certificates.get(0)), CertificateInfo.of(certificates.get(1)));
     }
 
     static Map<String, String> message(String text) {
