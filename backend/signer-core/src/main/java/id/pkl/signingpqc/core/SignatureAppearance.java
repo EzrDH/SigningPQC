@@ -19,6 +19,7 @@ import org.apache.pdfbox.pdmodel.common.PDStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
@@ -91,12 +92,27 @@ final class SignatureAppearance {
             widget.setAppearance(appearance);
 
             try (PDPageContentStream content = new PDPageContentStream(template, stream)) {
-                draw(content, rect.getWidth(), rect.getHeight(), lines);
+                byte[] specimen = visible.specimenPng();
+                if (specimen != null) {
+                    drawSpecimen(content, PDImageXObject.createFromByteArray(template, specimen, "spesimen"),
+                            rect.getWidth(), rect.getHeight());
+                } else {
+                    draw(content, rect.getWidth(), rect.getHeight(), lines);
+                }
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             template.save(out);
             return new ByteArrayInputStream(out.toByteArray());
         }
+    }
+
+    /** Spesimen diskalakan pas ke kotak tanpa distorsi, rata kiri dan tengah vertikal, tanpa latar dan teks. */
+    private static void drawSpecimen(PDPageContentStream content, PDImageXObject image, float width, float height)
+            throws IOException {
+        float scale = Math.min(width / image.getWidth(), height / image.getHeight());
+        float drawWidth = image.getWidth() * scale;
+        float drawHeight = image.getHeight() * scale;
+        content.drawImage(image, 0, (height - drawHeight) / 2, drawWidth, drawHeight);
     }
 
     private static void draw(PDPageContentStream content, float width, float height, List<String> lines)

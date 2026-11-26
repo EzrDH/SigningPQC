@@ -17,6 +17,11 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
+import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.pdmodel.PDResources;
+import org.apache.pdfbox.pdmodel.graphics.PDXObject;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -122,5 +127,67 @@ class VisibleSignatureTest {
         VisibleSignature noPage = new VisibleSignature(3, 40, 40, 220, 90, List.of());
         assertThrows(IllegalArgumentException.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
                 SignatureDetails.of("Uji", "Uji"), noPage, null));
+    }
+
+    @Test
+    void spesimenGambarDigambarTanpaTeks() throws Exception {
+        BufferedImage specimen = new BufferedImage(400, 160, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D g = specimen.createGraphics();
+        g.setColor(java.awt.Color.BLUE);
+        g.drawLine(10, 80, 390, 40);
+        g.dispose();
+        java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+        ImageIO.write(specimen, "png", png);
+
+        byte[] pdf = SamplePdf.create("Surat Uji Spesimen", "Spesimen gambar.");
+        VisibleSignature box = new VisibleSignature(0, 300, 600, 180, 75, List.of(), png.toByteArray());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of(IDENTITY.commonName(), "Uji"),
+                box, null);
+        assertTrue(new PdfSignatureVerifier().verify(out).get(0).valid());
+        try (PDDocument document = Loader.loadPDF(out)) {
+            PDSignatureField field = document.getDocumentCatalog().getAcroForm().getFields().stream()
+                    .filter(PDSignatureField.class::isInstance).map(PDSignatureField.class::cast).findFirst().orElseThrow();
+            PDFormXObject appearance = new PDFormXObject(field.getWidgets().get(0).getAppearance().getNormalAppearance()
+                    .getAppearanceStream().getCOSObject());
+            List<PDImageXObject> images = new java.util.ArrayList<>();
+            StringBuilder content = new StringBuilder();
+            collect(appearance, images, content, 0);
+            assertEquals(1, images.size());
+            assertEquals(400, images.get(0).getWidth());
+            assertEquals(160, images.get(0).getHeight());
+            assertTrue(!content.toString().contains("Tj") && !content.toString().contains("TJ"),
+                    "spesimen tanpa teks: " + content);
+        }
+    }
+
+    @Test
+    void spesimenBukanGambarDitolak() throws Exception {
+        byte[] pdf = SamplePdf.create("Surat Uji", "Spesimen salah.");
+        VisibleSignature box = new VisibleSignature(0, 300, 600, 180, 75, List.of(), "bukan".getBytes());
+        Exception e = assertThrows(Exception.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
+                SignatureDetails.of("Uji", "Uji"), box, null));
+        assertTrue(e instanceof java.io.IOException || e instanceof IllegalArgumentException, e.toString());
+    }
+
+    private static void collect(PDFormXObject form, List<PDImageXObject> images, StringBuilder content, int depth)
+            throws java.io.IOException {
+        if (depth > 6) {
+            return;
+        }
+        try (java.io.InputStream in = form.getContents()) {
+            content.append(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.ISO_8859_1));
+        }
+        PDResources resources = form.getResources();
+        if (resources == null) {
+            return;
+        }
+        for (COSName name : resources.getXObjectNames()) {
+            PDXObject x = resources.getXObject(name);
+            if (x instanceof PDImageXObject image) {
+                images.add(image);
+            } else if (x instanceof PDFormXObject inner) {
+                collect(inner, images, content, depth + 1);
+            }
+        }
     }
 }

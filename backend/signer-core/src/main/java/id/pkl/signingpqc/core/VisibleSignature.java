@@ -11,15 +11,28 @@ import java.util.List;
  * @param width lebar kotak (point)
  * @param height tinggi kotak (point)
  * @param extraLines baris tambahan di bawah nama, misalnya jabatan
+ * @param specimenPng gambar spesimen opsional (PNG atau JPEG)
  */
 public record VisibleSignature(int pageIndex, float x, float yFromTop, float width, float height,
-        List<String> extraLines) {
+        List<String> extraLines, byte[] specimenPng) {
 
     public VisibleSignature {
         if (width < 120 || height < 60) {
             throw new IllegalArgumentException("Kotak tanda tangan minimal 120 x 60 point");
         }
         extraLines = extraLines == null ? List.of() : List.copyOf(extraLines);
+        specimenPng = specimenPng == null ? null : specimenPng.clone();
+    }
+
+    /** Kotak dengan teks standar (tanpa spesimen gambar). */
+    public VisibleSignature(int pageIndex, float x, float yFromTop, float width, float height, List<String> extraLines) {
+        this(pageIndex, x, yFromTop, width, height, extraLines, null);
+    }
+
+    /** Gambar spesimen (PNG atau JPEG); bila ada, kotak hanya berisi gambar ini tanpa teks. Null bila tidak ada. */
+    @Override
+    public byte[] specimenPng() {
+        return specimenPng == null ? null : specimenPng.clone();
     }
 
     /** Kotak 220 x 90 point di kanan bawah halaman pertama, dengan margin 40 point. */
