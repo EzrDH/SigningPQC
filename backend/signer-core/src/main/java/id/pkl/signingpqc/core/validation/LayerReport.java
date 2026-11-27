@@ -12,7 +12,8 @@ import id.pkl.signingpqc.core.TimestampReport;
  * @param time               waktu lapisan dibuat: genTime, atau waktu signature timestamp untuk tanda tangan
  * @param provenAt           waktu yang dibuktikan lapisan di atasnya (waktu pemeriksaan untuk lapisan teratas)
  * @param status             status lapisan ini saja
- * @param signatureTimestamp signature timestamp (hanya untuk tanda tangan B-T)
+ * @param signatureTimestamp token timestamp lapisan: signature timestamp tanda tangan B-T, atau token document
+ *                           timestamp itu sendiri
  */
 public record LayerReport(
         int revision,

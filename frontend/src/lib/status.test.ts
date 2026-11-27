@@ -28,6 +28,7 @@ function layer(code: string, status: OverallStatus = 'SAH'): LayerReport {
     code,
     status,
     detail: '',
+    signatureTimestamp: null,
   }
 }
 
@@ -47,6 +48,8 @@ function response(
             order: 1,
             fieldName: 'budi.uji',
             signatureAlgorithm: 'RSA (SHA-256)',
+            digestAlgorithm: 'SHA-256',
+            padesLevel: 'B-T',
             signerSubject: 'C=ID,O=SigningPQC Uji,CN=budi.uji',
             claimedSigningTime: '2026-11-26T01:20:00Z',
             coversWholeDocument: false,
@@ -69,6 +72,8 @@ function response(
           warnings: opts.warnings ?? [],
         }
       : null,
+    trustAnchors: [],
+    dss: { present: signed, certificates: 0, crls: 0 },
   }
 }
 

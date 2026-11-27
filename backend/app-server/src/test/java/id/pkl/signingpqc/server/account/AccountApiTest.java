@@ -524,6 +524,75 @@ class AccountApiTest {
         assertEquals("SAH", history.get(0).get("status").asString());
     }
 
+    private static final String FINGERPRINT = "^[0-9A-F]{2}(:[0-9A-F]{2}){31}$";
+
+    @Test
+    @Order(30)
+    void verifikasiMemuatBuktiDanOid() throws Exception {
+        JsonNode result = verifyOpen(Files.readAllBytes(OUTPUT_DIR.resolve("surat-ttd.pdf")));
+        JsonNode rsa = result.get("signatures").get(0);
+        JsonNode mlDsa = result.get("signatures").get(1);
+        JsonNode rsaDetail = rsa.get("detail");
+        JsonNode mlDsaDetail = mlDsa.get("detail");
+
+        // a. algoritma hash dan level PAdES beserta OID
+        assertEquals("1.2.840.113549.1.1.11", rsaDetail.get("signatureAlgorithmOid").asString(), rsaDetail.toString());
+        assertEquals("2.16.840.1.101.3.4.2.1", rsaDetail.get("digestAlgorithmOid").asString());
+        assertEquals("2.16.840.1.101.3.4.3.18", mlDsaDetail.get("signatureAlgorithmOid").asString());
+        assertEquals("2.16.840.1.101.3.4.2.3", mlDsaDetail.get("digestAlgorithmOid").asString());
+
+        // b. sidik jari, kunci publik, EKU, kebijakan sertifikat
+        JsonNode certificate = rsaDetail.get("certificate");
+        assertTrue(certificate.get("fingerprintSha256").asString().matches(FINGERPRINT), certificate.toString());
+        assertEquals("1.2.840.113549.1.1.1", certificate.get("publicKey").get("oid").asString());
+        assertEquals("1.2.840.113549.1.1.11", certificate.get("signatureAlgorithm").get("oid").asString());
+        assertEquals("1.3.6.1.5.5.7.3.36", certificate.get("extendedKeyUsage").get(0).get("oid").asString());
+        assertEquals("Penandatanganan dokumen", certificate.get("extendedKeyUsage").get(0).get("name").asString());
+        assertEquals("1.3.6.1.4.1.32473.2.1", certificate.get("certificatePolicies").get(0).get("oid").asString());
+        assertEquals("2.16.840.1.101.3.4.3.18", mlDsaDetail.get("certificate").get("publicKey").get("oid").asString());
+
+        // c + e. rincian rantai dan sumber CRL
+        JsonNode chain = rsaDetail.get("chain");
+        for (JsonNode entry : chain) {
+            assertFalse(entry.get("serialHex").asString().isBlank(), entry.toString());
+            assertTrue(entry.get("fingerprintSha256").asString().matches(FINGERPRINT), entry.toString());
+            assertTrue(entry.has("notBefore") && entry.has("notAfter"), entry.toString());
+        }
+        JsonNode crl = chain.get(0).get("crls").get(0);
+        assertTrue(crl.get("issuer").asString().contains("CA Antara"), crl.toString());
+        assertTrue(crl.get("source").asString().contains("DSS"), crl.toString());
+        assertTrue(crl.has("thisUpdate") && crl.has("nextUpdate"), crl.toString());
+        assertFalse(crl.get("listed").asBoolean());
+        assertEquals(0, chain.get(2).get("crls").size(), "root tidak dicek CRL");
+
+        // d. jangkar kepercayaan yang dipakai
+        JsonNode anchors = result.get("trustAnchors");
+        assertEquals(2, anchors.size(), anchors.toString());
+        assertEquals(chain.get(2).get("fingerprintSha256").asString(), anchors.get(0).get("fingerprintSha256").asString());
+
+        // f. revisi dan perlindungan tanda tangan berikutnya
+        assertEquals(2, rsaDetail.get("revision").asInt());
+        assertEquals("Isi dokumen sampai revisi 2", rsaDetail.get("coverage").asString());
+        assertEquals(3, mlDsaDetail.get("revision").asInt());
+        assertTrue(rsaDetail.get("protectedBy").asString().contains("ML-DSA"), rsaDetail.toString());
+        assertTrue(mlDsaDetail.get("protectedBy").isNull(), mlDsaDetail.toString());
+
+        // g. DSS dan document timestamp beserta OID kebijakan TSA
+        JsonNode dss = result.get("dss");
+        assertTrue(dss.get("present").asBoolean(), dss.toString());
+        assertTrue(dss.get("certificates").asInt() > 0 && dss.get("crls").asInt() > 0, dss.toString());
+        assertEquals("1.3.6.1.4.1.32473.1.1", rsa.get("signatureTimestamp").get("policyOid").asString());
+        JsonNode docTimestamp = null;
+        for (JsonNode layer : result.get("validation").get("layers")) {
+            if ("DOCUMENT_TIMESTAMP".equals(layer.get("kind").asString())) {
+                docTimestamp = layer;
+            }
+        }
+        assertTrue(docTimestamp != null, result.get("validation").toString());
+        assertEquals("1.3.6.1.4.1.32473.1.1", docTimestamp.get("signatureTimestamp").get("policyOid").asString());
+        assertFalse("-".equals(docTimestamp.get("signatureTimestamp").get("serialHex").asString()));
+    }
+
     @Test
     @Order(31)
     void verifyLamaTetapTerbuka() throws Exception {

@@ -44,6 +44,7 @@ export interface TimestampReport {
   imprintMatches: boolean
   tokenValid: boolean
   message: string
+  policyOid?: string | null
 }
 
 export interface CertificateDetail {
@@ -54,19 +55,57 @@ export interface CertificateDetail {
   notAfter: string
   keyAlgorithm: string
   keyUsage: string
+  fingerprintSha256: string
+  publicKey: Oid
+  signatureAlgorithm: Oid
+  extendedKeyUsage: Oid[]
+  certificatePolicies: Oid[]
+}
+
+/** Nama yang mudah dibaca beserta OID-nya. */
+export interface Oid {
+  name: string
+  oid: string
+}
+
+/** CRL penerbit yang tersedia saat pemeriksaan; source menyebut asalnya (DSS dokumen atau CRL lokal PKI uji). */
+export interface CrlEvidence {
+  issuer: string
+  crlNumber: string | null
+  thisUpdate: string
+  nextUpdate: string | null
+  source: string
+  listed: boolean
+  revokedAt: string | null
+}
+
+export interface ChainEntry {
+  subject: string
+  trustedRoot: boolean
+  serialHex: string
+  notBefore: string
+  notAfter: string
+  fingerprintSha256: string
+  crls: CrlEvidence[]
 }
 
 export interface SignatureDetail {
   certificate: CertificateDetail | null
-  chain: { subject: string; trustedRoot: boolean }[]
+  chain: ChainEntry[]
   revocation: string
   coverage: string
+  revision: number
+  signatureAlgorithmOid: string | null
+  digestAlgorithmOid: string | null
+  protectedBy: string | null
 }
 
 export interface SignatureView {
   order: number
   fieldName: string | null
   signatureAlgorithm: string
+  digestAlgorithm: string
+  padesLevel: string
   signerSubject: string
   claimedSigningTime: string | null
   coversWholeDocument: boolean
@@ -88,6 +127,7 @@ export interface LayerReport {
   code: string
   status: OverallStatus
   detail: string
+  signatureTimestamp: TimestampReport | null
 }
 
 export interface ValidationReport {
@@ -108,6 +148,8 @@ export interface VerifyResponse {
   summary: string
   signatures: SignatureView[]
   validation: ValidationReport | null
+  trustAnchors: { subject: string; fingerprintSha256: string }[]
+  dss: { present: boolean; certificates: number; crls: number }
 }
 
 /**

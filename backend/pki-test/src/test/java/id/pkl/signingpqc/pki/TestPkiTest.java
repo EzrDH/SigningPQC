@@ -91,6 +91,19 @@ class TestPkiTest {
     }
 
     @Test
+    void sertifikatPenandaTanganMemuatKebijakanSertifikatUji() throws Exception {
+        for (X509Certificate certificate : List.of(pair.rsa().certificate(), pair.mlDsa().certificate())) {
+            byte[] extension = certificate.getExtensionValue("2.5.29.32");
+            assertTrue(extension != null, "certificatePolicies harus ada");
+            org.bouncycastle.asn1.x509.CertificatePolicies policies = org.bouncycastle.asn1.x509.CertificatePolicies
+                    .getInstance(org.bouncycastle.asn1.ASN1OctetString.getInstance(extension).getOctets());
+            assertEquals(TestPkiFactory.TEST_CERTIFICATE_POLICY.getId(),
+                    policies.getPolicyInformation()[0].getPolicyIdentifier().getId());
+        }
+        assertEquals("1.3.6.1.4.1.32473.2.1", TestPkiFactory.TEST_CERTIFICATE_POLICY.getId());
+    }
+
+    @Test
     void sertifikatTsaPunyaEkuTimeStampingKritis() throws Exception {
         for (CaHierarchy hierarchy : List.of(rsa, mldsa)) {
             SigningCredential tsa = factory.issueTsa(hierarchy.intermediate(), "TSA Uji " + hierarchy.family().label(),

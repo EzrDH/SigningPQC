@@ -83,6 +83,8 @@ public final class SignatureTimestamps {
         java.time.Instant time = token.getTimeStampInfo().getGenTime().toInstant();
         String serial = token.getTimeStampInfo().getSerialNumber().toString(16).toUpperCase();
         String imprintAlgorithm = AlgorithmNames.digest(token.getTimeStampInfo().getMessageImprintAlgOID().getId());
+        String policy = token.getTimeStampInfo().getPolicy() == null ? null
+                : token.getTimeStampInfo().getPolicy().getId();
         String signatureAlgorithm = "-";
         try {
             SignerInformation tsaSigner = token.toCMSSignedData().getSignerInfos().getSigners().iterator().next();
@@ -95,7 +97,7 @@ public final class SignatureTimestamps {
             imprintMatches = TimestampClient.imprintMatches(token, timestampedData);
         } catch (GeneralSecurityException | IllegalArgumentException e) {
             return new TimestampReport(time, "-", serial, signatureAlgorithm, imprintAlgorithm, false, false,
-                    "Message imprint tidak dapat diperiksa: " + e.getMessage());
+                    "Message imprint tidak dapat diperiksa: " + e.getMessage(), policy);
         }
         try {
             X509Certificate tsaCertificate = TimestampClient.verify(token);
@@ -103,10 +105,10 @@ public final class SignatureTimestamps {
             String message = imprintMatches ? "Timestamp sah dan cocok dengan nilai tanda tangan"
                     : "Timestamp sah tetapi tidak cocok dengan nilai tanda tangan";
             return new TimestampReport(time, subject, serial, signatureAlgorithm, imprintAlgorithm, imprintMatches, true,
-                    message);
+                    message, policy);
         } catch (TimestampException e) {
             return new TimestampReport(time, "-", serial, signatureAlgorithm, imprintAlgorithm, imprintMatches, false,
-                    e.getMessage());
+                    e.getMessage(), policy);
         }
     }
 }

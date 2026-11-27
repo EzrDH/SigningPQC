@@ -298,6 +298,7 @@ public final class DocumentValidator {
         eval.time = report.time();
         eval.algorithm = report.signatureAlgorithm();
         eval.subject = report.tsaSubject();
+        eval.signatureTimestamp = report;
         if (!byteRangeValid(signature, pdf) || !report.imprintMatches()) {
             return eval.fail(ReasonCode.DOKUMEN_BERUBAH, OverallStatus.TIDAK_SAH,
                     "Message imprint tidak cocok dengan isi dokumen");
