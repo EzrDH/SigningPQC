@@ -78,7 +78,7 @@ Demo Jumat 11 Des: seluruh alur TTE dijalankan dari Vue.
 - [x] Verifikasi document timestamp (KF-22) (selesai 25 Nov, T-012)
 - [x] Halaman CA, sertifikat, TSA uji, dan log aktivitas (KF-34, KF-35) (selesai 27 Nov, T-020)
 - [ ] Uji TC-05 dan uji ulang seluruh alur, perbaikan bug (TC-05 lulus 27 Nov, T-021; uji ulang alur di laptop menyusul)
-- [ ] README cara menjalankan dan panduan singkat
+- [x] README cara menjalankan dan panduan singkat (selesai 27 Nov)
 
 **Demo Jumat 18 Des (akhir on lokus):** prototipe Vue + Java yang menandatangani, menambahkan LTV, dan memverifikasi PDF hybrid dengan benar.
 

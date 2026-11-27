@@ -43,9 +43,9 @@ Hanya untuk lingkungan uji dengan data sintetis.
 |---|---|
 | `src/api` | Klien fetch (token Bearer, galat JSON) dan tipe respons backend |
 | `src/stores` | Sesi (`sessionStorage`), dokumen yang sedang dikerjakan, pengaturan akun |
-| `src/lib` | Logika murni yang diuji: `coords.ts` (layar ke koordinat PDF, termasuk halaman berotasi), `status.ts` (hasil verifikasi ke bahasa pengguna), `validasi.ts` |
+| `src/lib` | Logika murni yang diuji: `coords.ts` (layar ke koordinat PDF, termasuk halaman berotasi), `status.ts` (hasil verifikasi ke bahasa pengguna), `validasi.ts`, `pki.ts` (nama CA/TSA, masa berlaku, hasil log aktivitas) |
 | `src/components` | Topbar, kotak OTP, area unggah, penampil PDF, kotak spesimen, dialog konfirmasi, hasil dan detail verifikasi |
-| `src/views` | Masuk, Daftar, Beranda, Unggah, Tandatangani, Verifikasi, Pengaturan, Profil |
+| `src/views` | Masuk, Daftar, Beranda, Unggah, Tandatangani, Verifikasi, Pengaturan, Lingkungan uji, Profil |
 | `e2e` | Skrip uji manual Playwright (lihat di bawah) |
 
 ## Uji ujung ke ujung (manual)
