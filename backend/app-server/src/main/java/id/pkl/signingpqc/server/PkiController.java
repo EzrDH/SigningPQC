@@ -80,9 +80,9 @@ public class PkiController {
             cas.add(new CaInfo(ca.id(), ca.family().label(), CertificateInfo.of(ca.certificate())));
         }
         List<CaInfo> tsas = new ArrayList<>();
-        for (PkiFamily family : PkiFamily.values()) {
-            tsas.add(new CaInfo("tsa-" + family.slug(), family.label(),
-                    CertificateInfo.of(pki.tsa(family).certificate())));
+        for (String id : pki.tsaIds()) {
+            PkiFamily family = id.startsWith("rsa") ? PkiFamily.RSA : PkiFamily.ML_DSA;
+            tsas.add(new CaInfo("tsa-" + id, family.label(), CertificateInfo.of(pki.tsa(id).certificate())));
         }
         PkiService.State state = pki.state();
         return new Status(true, state.organization(), state.createdAt(), pki.dataDir().toAbsolutePath().toString(),

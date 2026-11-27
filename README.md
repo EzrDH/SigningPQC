@@ -73,8 +73,11 @@ Data PKI uji (PKCS#12 berpassword dan `state.json`) disimpan di `%USERPROFILE%\S
 | `POST /api/pki/signers/{id}/revoke` | Mencabut kedua sertifikat penanda tangan |
 | `GET /api/pki/crl/{caId}.crl`, `GET /api/pki/ca/{caId}.crt` | CRL dan sertifikat CA (`rsa-root`, `rsa-intermediate`, `mldsa-root`, `mldsa-intermediate`) |
 | `POST /api/tsa/rsa`, `POST /api/tsa/mldsa` | TSA RFC 3161 (`application/timestamp-query`) |
-| `POST /api/sign` (multipart: `file`, `signerId`, opsional `reason`, `location`, `page`, `x`, `y`, `width`, `height`, `timestamp`) | Tanda tangan hybrid: RSA visible lalu ML-DSA invisible, keduanya B-T |
-| `POST /api/verify` (multipart: `file`) | Hasil verifikasi setiap tanda tangan |
+| `POST /api/sign` (multipart: `file`, `signerId`, opsional `reason`, `location`, `page`, `x`, `y`, `width`, `height`, `timestamp`, `level`) | Tanda tangan hybrid: RSA visible lalu ML-DSA invisible. `level`: `B-B`, `B-T` (bawaan), `B-LT`, atau `B-LTA` |
+| `POST /api/verify` (multipart: `file`, opsional `at`) | Hasil setiap tanda tangan dan `validation`: validasi berlapis pada waktu `at` (ISO-8601, bawaan sekarang) |
+| `POST /api/ltv/validation-data` (multipart: `file`, opsional `at`) | Lapisan 3: rantai dan CRL ke kamus DSS |
+| `POST /api/ltv/timestamp?tsa=rsa-g1\|rsa-g2\|mldsa` (opsional `at`) | Lapisan 4: document timestamp |
+| `POST /api/ltv/renew?tsa=...` (opsional `at`) | Pembaruan: DSS untuk lapisan terakhir, lalu document timestamp baru |
 
 Coba seluruh alur (backend harus berjalan):
 
@@ -82,6 +85,22 @@ Coba seluruh alur (backend harus berjalan):
 powershell -ExecutionPolicy Bypass -File scripts\coba-rest.ps1 -Pdf "backend\spike-output\00-asli.pdf"
 ```
 
+## Lapisan jangka panjang (Sprint 2)
+
+Dokumen bisa dibungkus berlapis sesuai gambar pembimbing: tanda tangan hybrid B-T (lapisan 1-2), DSS (lapisan 3),
+document timestamp TSA RSA G1 (lapisan 4), pembaruan TSA RSA G2 (lapisan 5), dan pembaruan TSA ML-DSA (lapisan 6).
+Validator memeriksa setiap lapisan pada waktu yang dibuktikan lapisan di atasnya. Status hasilnya `SAH`, `TIDAK_SAH`,
+atau `TIDAK_DAPAT_DIBUKTIKAN`, dengan kode alasan dan batas perlindungan.
+
+`exec:java` (lihat PKI uji di atas) juga membuat `05-hybrid-lt.pdf`, `06-hybrid-lta.pdf`, dan
+`07-hybrid-pembaruan-pqc.pdf`, lalu mencetak laporan validasi. `07` tetap sah pada simulasi 2040. `06` tanpa
+pembaruan tidak dapat dibuktikan setelah TSA G1 kedaluwarsa. Waktu simulasi dibuat dengan jam TSA dan CRL yang
+digeser, dan hanya berlaku untuk TSA uji.
+
+PKI uji dari Sprint 1 belum punya TSA `rsa-g2`. Buat ulang dengan `POST /api/pki/setup?reset=true` untuk memakai
+profil jangka panjang: root 30 tahun, CA antara 25 tahun, TSA RSA G1 2 tahun, G2 10 tahun, dan ML-DSA 20 tahun.
+Lihat `docs/temuan/T-012-lapisan-lt-lta-dan-pembaruan-tsa-pqc.md`.
+
 ## Status
 
-Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 selesai: PKI uji, TSA lokal RFC 3161, PAdES B-T, tanda tangan RSA visible, uji vektor NIST ACVP, REST lokal, dan uji ulang di PdfCraft/Adobe (T-011). Catatan: Adobe menandai tanda tangan ML-DSA tidak sah karena belum mendukung ML-DSA; ini keterbatasan yang diterima. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
+Sprint 0 selesai (kerangka proyek dan bukti tanda tangan ML-DSA di PDF). Sprint 1 selesai: PKI uji, TSA lokal RFC 3161, PAdES B-T, tanda tangan RSA visible, uji vektor NIST ACVP, REST lokal, dan uji ulang di PdfCraft/Adobe (T-011). Catatan: Adobe menandai tanda tangan ML-DSA tidak sah karena belum mendukung ML-DSA; ini keterbatasan yang diterima. Sprint 2 (lapisan jangka panjang) selesai lebih awal: DSS, document timestamp, pembaruan TSA sampai TSA ML-DSA, dan validator berlapis (T-012). Berikutnya frontend Vue. Lihat `docs/03-Jadwal-Sprint-SigningPQC.md`.
