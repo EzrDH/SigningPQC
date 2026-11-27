@@ -16,6 +16,10 @@ output/
 *.p12
 *.pfx
 *.key
+# Data akun aplikasi pengguna (kunci terenkripsi, spesimen, riwayat) dan folder keluaran
+**/accounts/
+*.enc
+output-signing/
 
 # IDE
 .idea/

@@ -3,7 +3,7 @@ package id.pkl.signingpqc.core;
 import java.util.Map;
 
 /** Nama algoritma yang mudah dibaca dari OID pada SignerInfo. */
-final class AlgorithmNames {
+public final class AlgorithmNames {
 
     private static final Map<String, String> SIGNATURE = Map.of(
             "1.2.840.113549.1.1.1", "RSA",
@@ -22,11 +22,11 @@ final class AlgorithmNames {
     private AlgorithmNames() {
     }
 
-    static String signature(String oid) {
+    public static String signature(String oid) {
         return SIGNATURE.getOrDefault(oid, oid);
     }
 
-    static String digest(String oid) {
+    public static String digest(String oid) {
         return DIGEST.getOrDefault(oid, oid);
     }
 

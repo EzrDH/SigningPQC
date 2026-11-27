@@ -25,6 +25,13 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-010 | 25 Nov 2026 | Pengujian | REST lokal untuk alur TTE hybrid dan waktu tanda tangan (rata-rata 24 ms) | Lulus |
 | T-011 | 25 Nov 2026 | Pengujian, bug, dan temuan kompatibilitas | Uji ulang di PdfCraft dan Adobe: OID kebijakan TSA ditolak, ML-DSA dianggap tidak sah oleh Adobe | OID diperbaiki, keterbatasan Adobe diterima |
 | T-012 | 25 Nov 2026 | Pengujian | Lapisan LTV (B-LT, B-LTA) dan pembaruan TSA sampai TSA ML-DSA: dokumen sah pada simulasi 2040 | Lulus (uji pembaca PDF menyusul) |
+| T-013 | 26 Nov 2026 | Pengujian | Akun pengguna, pembungkusan kunci passphrase/TOTP, dan tanda tangan B-LTA dari aplikasi (130 uji) | Lulus (JDK 25 menyusul) |
+| T-014 | 26 Nov 2026 | Temuan | Spesimen pada halaman PDF berotasi: ukuran minimal, orientasi, dan posisi bawaan kini mengikuti /Rotate | Diperbaiki |
+| T-015 | 26 Nov 2026 | Pengujian | Antarmuka pengguna Vue: delapan layar sesuai mockup v7, 39 uji Vitest, alur lengkap di browser; bug logout saat kode salah diperbaiki | Lulus (container dan laptop) |
+| T-016 | 26 Nov 2026 | Temuan | Keamanan akun: penghitung penguncian dipisah per faktor (login tidak lagi mereset tebakan passphrase/TOTP) dan folder keluaran tidak boleh di dalam folder data | Diperbaiki |
+| T-017 | 26 Nov 2026 | Temuan | Status verifikasi mengikuti ETSI EN 319 102-1: penerbit tak dikenal menjadi "tidak dapat dibuktikan", tanda tangan sah tanpa pasangan RSA+ML-DSA menjadi sah dengan peringatan "bukan hybrid" (revisi 27 Nov) | Diperbaiki |
+| T-018 | 26 Nov 2026 | Pengujian dan temuan kompatibilitas | Uji langsung di browser Windows (31 langkah, JDK 25): seluruh alur lolos, ditemukan intersepsi HTTP 204 pada `POST /api/me/sign` oleh pengelola unduhan karena `Content-Disposition: attachment` | Lulus dengan temuan |
+| T-019 | 27 Nov 2026 | Temuan | Bukti pada detail verifikasi: OID algoritma dan kebijakan, sidik jari SHA-256, CRL beserta sumbernya, jangkar kepercayaan, revisi yang ditutup tiap tanda tangan, dan tab "Lapisan dokumen" (DSS dan document timestamp) | Diperbaiki |
 
 ## Templat
 

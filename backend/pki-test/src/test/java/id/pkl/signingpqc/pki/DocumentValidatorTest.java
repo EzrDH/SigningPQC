@@ -192,6 +192,35 @@ class DocumentValidatorTest {
         assertFalse(report.hybridComplete());
     }
 
+    /** ETSI EN 319 102-1: rantai yang tidak berakhir di trust anchor berstatus INDETERMINATE, bukan gagal (T-017). */
+    @Test
+    void penerbitTidakDipercayaTidakDapatDibuktikan() throws Exception {
+        DocumentValidator noTrust = new DocumentValidator(java.util.Set.of(LtvFixtures.pki().mlDsa().root().certificate()),
+                AlgorithmPolicy.defaults(), Duration.ofDays(30));
+        ValidationReport report = noTrust.validate(LtvFixtures.hybridBt(), T0.plus(Duration.ofHours(1)));
+        assertEquals(OverallStatus.TIDAK_DAPAT_DIBUKTIKAN, report.status(), report.toString());
+        assertTrue(hasCode(report, ReasonCode.ROOT_TIDAK_DIPERCAYA), report.toString());
+    }
+
+    /**
+     * KF-23: hanya RSA + ML-DSA yang "sah hybrid". RSA sah tanpa ML-DSA berstatus sah dengan peringatan
+     * (hybridComplete salah), bukan tidak sah atau tidak dapat dibuktikan (T-017, revisi 27 Nov 2026).
+     */
+    @Test
+    void rsaSahTanpaMlDsaSahDenganPeringatanHybrid() throws Exception {
+        LongTermPki pki = LtvFixtures.pki();
+        byte[] rsaOnly = new id.pkl.signingpqc.core.PadesSigner().signInvisible(
+                SamplePdf.create("Surat RSA", "Hanya RSA."), pki.signer().rsa(),
+                id.pkl.signingpqc.core.SignatureDetails.of(LtvFixtures.IDENTITY.commonName(), "RSA"),
+                LtvFixtures.tsa(pki.tsaRsaGen1(), T0));
+        ValidationReport report = validator().validate(rsaOnly, T0.plus(Duration.ofHours(1)));
+        assertEquals(OverallStatus.SAH, report.status(), report.toString());
+        assertFalse(report.hybridComplete());
+        assertTrue(report.warnings().contains(ReasonCode.TANDA_TANGAN_HYBRID_TIDAK_LENGKAP), report.toString());
+        assertTrue(report.layers().stream().filter(l -> l.kind() == LayerKind.TANDA_TANGAN)
+                .allMatch(l -> l.status() == OverallStatus.SAH), report.toString());
+    }
+
     @Test
     void ltaTanpaDss() throws Exception {
         byte[] pdf = LtvService.addDocumentTimestamp(LtvFixtures.hybridBt(),

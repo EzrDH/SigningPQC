@@ -2,6 +2,7 @@ package id.pkl.signingpqc.server;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 import id.pkl.signingpqc.core.PadesSigner;
 import id.pkl.signingpqc.core.SignatureDetails;
 import id.pkl.signingpqc.core.VisibleSignature;
+import id.pkl.signingpqc.core.ltv.LtvService;
+import id.pkl.signingpqc.core.ltv.TimestampProfile;
 import id.pkl.signingpqc.pki.PkiFamily;
 import id.pkl.signingpqc.pki.SignerPair;
 
@@ -54,6 +57,84 @@ public class SigningService {
         byte[] afterRsa = signer.signVisible(pdf, pair.rsa(), details, visible,
                 timestamp ? tsa.client(PkiFamily.RSA) : null);
         return signer.signInvisible(afterRsa, pair.mlDsa(), details, timestamp ? tsa.client(PkiFamily.ML_DSA) : null);
+    }
+
+    /**
+     * Tanda tangan untuk akun: RSA (visible bila {@code visibleOrNull} tidak null, selain itu invisible), lalu ML-DSA
+     * invisible yang menutup dokumen, keduanya dengan signature timestamp; lalu data validasi (DSS) dan document
+     * timestamp TSA RSA generasi 1, sehingga hasilnya PAdES B-LTA.
+     */
+    public byte[] signHybrid(byte[] pdf, SignerPair pair, PkiService.SignerRecord record, VisibleSignature visibleOrNull)
+            throws IOException, GeneralSecurityException {
+        if (!looksLikePdf(pdf)) {
+            throw ApiException.badRequest("Berkas bukan PDF");
+        }
+        SignatureDetails details = new SignatureDetails(record.commonName(), "Persetujuan dokumen", "Jakarta");
+        byte[] afterRsa = visibleOrNull != null
+                ? signer.signVisible(pdf, pair.rsa(), details, visibleOrNull, tsa.client(PkiFamily.RSA))
+                : signer.signInvisible(pdf, pair.rsa(), details, tsa.client(PkiFamily.RSA));
+        byte[] signed = signer.signInvisible(afterRsa, pair.mlDsa(), details, tsa.client(PkiFamily.ML_DSA));
+        signed = LtvService.addValidationData(signed, pki.revocationSource(Instant.now()));
+        return LtvService.addDocumentTimestamp(signed, tsa.client("rsa-g1", null), TimestampProfile.RSA);
+    }
+
+    /**
+     * Kotak tanda tangan di halaman {@code page} (mulai 1). Posisi dan ukuran dalam point dengan y dari atas, pada
+     * koordinat halaman tanpa /Rotate (seperti {@link VisibleSignature}); yang kosong memakai bawaan 180 x 75 point di
+     * kanan bawah halaman sebagaimana tampil, dengan margin 40.
+     */
+    public VisibleSignature placement(byte[] pdf, int page, Float x, Float y, Float width, Float height,
+            byte[] specimenPng) throws IOException {
+        return placementOf(pdf, page, x, y, width, height, specimenPng);
+    }
+
+    static VisibleSignature placementOf(byte[] pdf, int page, Float x, Float y, Float width, Float height,
+            byte[] specimenPng) throws IOException {
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            if (page < 1 || page > document.getNumberOfPages()) {
+                throw ApiException.badRequest("Halaman " + page + " tidak ada (dokumen punya "
+                        + document.getNumberOfPages() + " halaman)");
+            }
+            var pdPage = document.getPage(page - 1);
+            // Area yang tampil (CropBox), sama dengan ukuran halaman di pdf.js.
+            PDRectangle box = pdPage.getCropBox();
+            int turns = Math.floorMod(pdPage.getRotation(), 360) / 90;
+            boolean turned = turns % 2 == 1;
+            float pageW = box.getWidth();
+            float pageH = box.getHeight();
+            // Ukuran di halaman asli: bila tidak diberikan, 180 x 75 sebagaimana tampil.
+            float w = width != null ? width : turned ? 75 : 180;
+            float h = height != null ? height : turned ? 180 : 75;
+            float left = x != null ? x : 0;
+            float top = y != null ? y : 0;
+            if (x == null || y == null) {
+                float shownW = turned ? h : w;
+                float shownH = turned ? w : h;
+                float dispW = turned ? pageH : pageW;
+                float dispH = turned ? pageW : pageH;
+                float[] a = toPage(dispW - shownW - 40, dispH - shownH - 40, turns, pageW, pageH);
+                float[] b = toPage(dispW - 40, dispH - 40, turns, pageW, pageH);
+                if (x == null) {
+                    left = Math.min(a[0], b[0]);
+                }
+                if (y == null) {
+                    top = Math.min(a[1], b[1]);
+                }
+            }
+            VisibleSignature visible = new VisibleSignature(page - 1, left, top, w, h, List.of(), specimenPng);
+            visible.requireFits(document);
+            return visible;
+        }
+    }
+
+    /** Titik tampilan (dx, dy) ke titik halaman asli (u, v dari atas); sama dengan frontend/src/lib/coords.ts. */
+    private static float[] toPage(float dx, float dy, int turns, float pageW, float pageH) {
+        return switch (turns) {
+            case 1 -> new float[] {dy, pageH - dx};
+            case 2 -> new float[] {pageW - dx, pageH - dy};
+            case 3 -> new float[] {pageW - dy, dx};
+            default -> new float[] {dx, dy};
+        };
     }
 
     static boolean looksLikePdf(byte[] data) {

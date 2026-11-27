@@ -17,6 +17,11 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
+import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.pdmodel.PDResources;
+import org.apache.pdfbox.pdmodel.graphics.PDXObject;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -122,5 +127,199 @@ class VisibleSignatureTest {
         VisibleSignature noPage = new VisibleSignature(3, 40, 40, 220, 90, List.of());
         assertThrows(IllegalArgumentException.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
                 SignatureDetails.of("Uji", "Uji"), noPage, null));
+    }
+
+    @Test
+    void spesimenGambarDigambarTanpaTeks() throws Exception {
+        BufferedImage specimen = new BufferedImage(400, 160, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D g = specimen.createGraphics();
+        g.setColor(java.awt.Color.BLUE);
+        g.drawLine(10, 80, 390, 40);
+        g.dispose();
+        java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+        ImageIO.write(specimen, "png", png);
+
+        byte[] pdf = SamplePdf.create("Surat Uji Spesimen", "Spesimen gambar.");
+        VisibleSignature box = new VisibleSignature(0, 300, 600, 180, 75, List.of(), png.toByteArray());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of(IDENTITY.commonName(), "Uji"),
+                box, null);
+        assertTrue(new PdfSignatureVerifier().verify(out).get(0).valid());
+        try (PDDocument document = Loader.loadPDF(out)) {
+            PDSignatureField field = document.getDocumentCatalog().getAcroForm().getFields().stream()
+                    .filter(PDSignatureField.class::isInstance).map(PDSignatureField.class::cast).findFirst().orElseThrow();
+            PDFormXObject appearance = new PDFormXObject(field.getWidgets().get(0).getAppearance().getNormalAppearance()
+                    .getAppearanceStream().getCOSObject());
+            List<PDImageXObject> images = new java.util.ArrayList<>();
+            StringBuilder content = new StringBuilder();
+            collect(appearance, images, content, 0);
+            assertEquals(1, images.size());
+            assertEquals(400, images.get(0).getWidth());
+            assertEquals(160, images.get(0).getHeight());
+            assertTrue(!content.toString().contains("Tj") && !content.toString().contains("TJ"),
+                    "spesimen tanpa teks: " + content);
+        }
+    }
+
+    @Test
+    void spesimenBukanGambarDitolak() throws Exception {
+        byte[] pdf = SamplePdf.create("Surat Uji", "Spesimen salah.");
+        VisibleSignature box = new VisibleSignature(0, 300, 600, 180, 75, List.of(), "bukan".getBytes());
+        Exception e = assertThrows(Exception.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
+                SignatureDetails.of("Uji", "Uji"), box, null));
+        assertTrue(e instanceof java.io.IOException || e instanceof IllegalArgumentException, e.toString());
+    }
+
+    /**
+     * Halaman ber-/Rotate 90 (umum pada hasil pindai lanskap). Kotak yang tampil di layar 180 x 75 di posisi
+     * (500, 400) setara kotak halaman asli x=400, yFromTop=162, 75 x 180; pada rotasi 270 setara x=120, yFromTop=500
+     * (lihat frontend/src/lib/coords.ts). Spesimen
+     * harus tampil tegak (lebar lebih besar dari tinggi) di posisi itu saat halaman dirender dengan rotasinya.
+     */
+    @org.junit.jupiter.params.ParameterizedTest(name = "rotasi {0}")
+    @org.junit.jupiter.params.provider.CsvSource({"90, 400, 162", "270, 120, 500"})
+    void halamanBerotasiSpesimenTampilTegakDiPosisiYangDipilih(int rotation, float boxX, float boxYFromTop)
+            throws Exception {
+        // Separuh kiri hitam, separuh kanan putih: membedakan tegak dari terbalik atau tercermin.
+        BufferedImage specimen = new BufferedImage(400, 160, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = specimen.createGraphics();
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, 400, 160);
+        g.setColor(java.awt.Color.BLACK);
+        g.fillRect(0, 0, 200, 160);
+        g.dispose();
+        java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+        ImageIO.write(specimen, "png", png);
+
+        byte[] pdf;
+        try (PDDocument document = Loader.loadPDF(SamplePdf.create("Surat Lanskap", "Halaman berotasi 90."));
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            document.getPage(0).setRotation(rotation);
+            document.save(out);
+            pdf = out.toByteArray();
+        }
+        VisibleSignature box = new VisibleSignature(0, boxX, boxYFromTop, 75, 180, List.of(), png.toByteArray());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of(IDENTITY.commonName(), "Uji"),
+                box, null);
+        assertTrue(new PdfSignatureVerifier().verify(out).get(0).valid());
+
+        try (PDDocument document = Loader.loadPDF(out)) {
+            BufferedImage image = new PDFRenderer(document).renderImage(0, 1f);
+            assertTrue(image.getWidth() > image.getHeight(), "halaman tampil lanskap");
+            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, maxX = -1, maxY = -1;
+            for (int x = 480; x < 700; x++) {
+                for (int y = 380; y < 495; y++) {
+                    int rgb = image.getRGB(x, y);
+                    if (((rgb >> 16) & 0xff) + ((rgb >> 8) & 0xff) + (rgb & 0xff) < 150) {
+                        minX = Math.min(minX, x);
+                        maxX = Math.max(maxX, x);
+                        minY = Math.min(minY, y);
+                        maxY = Math.max(maxY, y);
+                    }
+                }
+            }
+            assertTrue(maxX > 0, "spesimen harus tergambar di dalam kotak yang dipilih");
+            int width = maxX - minX + 1;
+            int height = maxY - minY + 1;
+            // Kotak 180 x 75, gambar 400 x 160 diskalakan 0,45 menjadi 180 x 72; separuh kirinya 90 x 72.
+            assertEquals(90, width, 3, "separuh hitam selebar 90 (tegak, bukan 72 bila masih miring)");
+            assertEquals(72, height, 3, "tinggi 72");
+            assertEquals(500, minX, 2, "separuh hitam di kiri kotak (tidak terbalik)");
+            assertTrue(minY >= 400 && maxY <= 475, "di dalam kotak vertikal: " + minY + ".." + maxY);
+        }
+    }
+
+    @Test
+    void halamanBerotasiUkuranMinimalMengikutiTampilan() throws Exception {
+        byte[] pdf;
+        try (PDDocument document = Loader.loadPDF(SamplePdf.create("Surat Lanskap", "Kecil."));
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            document.getPage(0).setRotation(90);
+            document.save(out);
+            pdf = out.toByteArray();
+        }
+        // 180 x 75 di halaman asli tampil 75 x 180 di layar: lebar tampilan di bawah 120, ditolak.
+        VisibleSignature tall = new VisibleSignature(0, 100, 100, 180, 75, List.of());
+        assertThrows(IllegalArgumentException.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
+                SignatureDetails.of("Uji", "Uji"), tall, null));
+    }
+
+    @Test
+    void posisiDiAtasTepiHalamanDitolak() throws Exception {
+        byte[] pdf = SamplePdf.create("Surat Uji", "Posisi salah.");
+        VisibleSignature above = new VisibleSignature(0, 40, -10, 180, 75, List.of());
+        assertThrows(IllegalArgumentException.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
+                SignatureDetails.of("Uji", "Uji"), above, null));
+    }
+
+    /** A4 dari ReportLab (595.2755905511812 pt): kotak rapat kanan bawah dari frontend (dibulatkan 3 desimal) diterima. */
+    @Test
+    void kotakRapatTepiPadaHalamanDesimalPanjangDiterima() throws Exception {
+        byte[] pdf = pageWithBoxes(new PDRectangle(595.2755905511812f, 841.8897637795277f), null);
+        VisibleSignature edge = new VisibleSignature(0, 415.276f, 766.89f, 180, 75, List.of());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of("Uji", "Uji"), edge, null);
+        try (PDDocument document = Loader.loadPDF(out)) {
+            PDRectangle rect = firstWidget(document).getRectangle();
+            PDRectangle media = document.getPage(0).getMediaBox();
+            assertTrue(rect.getUpperRightX() <= media.getUpperRightX() && rect.getLowerLeftY() >= media.getLowerLeftY(),
+                    "kotak di dalam halaman: " + rect);
+            assertEquals(180, rect.getWidth(), 0.01f);
+        }
+    }
+
+    /** CropBox [36 36 576 756] di MediaBox [0 0 612 792]: koordinat diukur dari pojok kiri atas area yang tampil. */
+    @Test
+    void koordinatMengikutiCropBox() throws Exception {
+        byte[] pdf = pageWithBoxes(new PDRectangle(612, 792), new PDRectangle(36, 36, 540, 720));
+        VisibleSignature box = new VisibleSignature(0, 100, 100, 180, 75, List.of());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of("Uji", "Uji"), box, null);
+        try (PDDocument document = Loader.loadPDF(out)) {
+            PDRectangle rect = firstWidget(document).getRectangle();
+            assertEquals(136, rect.getLowerLeftX(), 0.01f);
+            assertEquals(756 - 100 - 75, rect.getLowerLeftY(), 0.01f);
+        }
+        // Di luar CropBox (masih di dalam MediaBox) ditolak.
+        VisibleSignature outside = new VisibleSignature(0, 400, 100, 180, 75, List.of());
+        assertThrows(IllegalArgumentException.class, () -> new PadesSigner().signVisible(pdf, pair.rsa(),
+                SignatureDetails.of("Uji", "Uji"), outside, null));
+    }
+
+    private static byte[] pageWithBoxes(PDRectangle media, PDRectangle crop) throws Exception {
+        try (PDDocument document = new PDDocument(); java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage(media);
+            if (crop != null) {
+                page.setCropBox(crop);
+            }
+            document.addPage(page);
+            document.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    private static PDAnnotationWidget firstWidget(PDDocument document) {
+        return document.getDocumentCatalog().getAcroForm().getFields().stream()
+                .filter(PDSignatureField.class::isInstance).map(PDSignatureField.class::cast).findFirst().orElseThrow()
+                .getWidgets().get(0);
+    }
+
+    private static void collect(PDFormXObject form, List<PDImageXObject> images, StringBuilder content, int depth)
+            throws java.io.IOException {
+        if (depth > 6) {
+            return;
+        }
+        try (java.io.InputStream in = form.getContents()) {
+            content.append(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.ISO_8859_1));
+        }
+        PDResources resources = form.getResources();
+        if (resources == null) {
+            return;
+        }
+        for (COSName name : resources.getXObjectNames()) {
+            PDXObject x = resources.getXObject(name);
+            if (x instanceof PDImageXObject image) {
+                images.add(image);
+            } else if (x instanceof PDFormXObject inner) {
+                collect(inner, images, content, depth + 1);
+            }
+        }
     }
 }

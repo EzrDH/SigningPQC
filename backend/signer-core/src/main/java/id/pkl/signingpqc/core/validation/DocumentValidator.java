@@ -190,13 +190,13 @@ public final class DocumentValidator {
         OverallStatus status;
         if (layers.stream().anyMatch(l -> l.status() == OverallStatus.TIDAK_SAH)) {
             status = OverallStatus.TIDAK_SAH;
-        } else if (!hybridComplete) {
-            status = OverallStatus.TIDAK_SAH;
         } else if (layers.stream().anyMatch(l -> l.status() == OverallStatus.TIDAK_DAPAT_DIBUKTIKAN)) {
             status = OverallStatus.TIDAK_DAPAT_DIBUKTIKAN;
         } else {
             status = OverallStatus.SAH;
         }
+        // KF-23: "sah hybrid" hanya untuk RSA + ML-DSA (hybridComplete). Tanda tangan yang sah tanpa pasangannya tetap
+        // sah, dengan peringatan bahwa dokumen tidak memenuhi kebijakan hybrid (T-017, revisi 27 Nov 2026).
         if (!hybridComplete) {
             warnings.add(ReasonCode.TANDA_TANGAN_HYBRID_TIDAK_LENGKAP);
         }
@@ -298,6 +298,7 @@ public final class DocumentValidator {
         eval.time = report.time();
         eval.algorithm = report.signatureAlgorithm();
         eval.subject = report.tsaSubject();
+        eval.signatureTimestamp = report;
         if (!byteRangeValid(signature, pdf) || !report.imprintMatches()) {
             return eval.fail(ReasonCode.DOKUMEN_BERUBAH, OverallStatus.TIDAK_SAH,
                     "Message imprint tidak cocok dengan isi dokumen");
@@ -373,6 +374,8 @@ public final class DocumentValidator {
                 eval.fail(chain.code(), OverallStatus.TIDAK_DAPAT_DIBUKTIKAN, chain.detail());
                 return true;
             case DATA_VALIDASI_TIDAK_ADA:
+            case ROOT_TIDAK_DIPERCAYA:
+                // ETSI EN 319 102-1: rantai tanpa trust anchor berstatus INDETERMINATE, bukan gagal (T-017).
                 eval.fail(chain.code(), OverallStatus.TIDAK_DAPAT_DIBUKTIKAN, chain.detail());
                 return true;
             case SERTIFIKAT_TIDAK_BERLAKU:

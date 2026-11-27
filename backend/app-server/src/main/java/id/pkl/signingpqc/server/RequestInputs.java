@@ -10,13 +10,13 @@ import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.springframework.web.multipart.MultipartFile;
 
 /** Pemeriksaan masukan bersama: berkas PDF yang bisa diolah dan waktu simulasi ISO-8601. */
-final class RequestInputs {
+public final class RequestInputs {
 
     private RequestInputs() {
     }
 
     /** Isi berkas bila PDF biasa (tidak terenkripsi) yang bisa dibaca; selain itu 400. */
-    static byte[] pdf(MultipartFile file) throws IOException {
+    public static byte[] pdf(MultipartFile file) throws IOException {
         byte[] data = file.getBytes();
         if (!SigningService.looksLikePdf(data)) {
             throw ApiException.badRequest("Berkas bukan PDF");
@@ -34,7 +34,7 @@ final class RequestInputs {
     }
 
     /** Waktu simulasi opsional, misalnya 2034-06-01T00:00:00Z; null bila kosong. */
-    static Instant time(String value) {
+    public static Instant time(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
@@ -46,7 +46,7 @@ final class RequestInputs {
         }
     }
 
-    static String outputName(MultipartFile file, String suffix) {
+    public static String outputName(MultipartFile file, String suffix) {
         String name = file.getOriginalFilename() == null ? "dokumen.pdf" : file.getOriginalFilename();
         return name.toLowerCase().endsWith(".pdf") ? name.substring(0, name.length() - 4) + suffix + ".pdf"
                 : name + suffix + ".pdf";

@@ -62,6 +62,13 @@ public final class TestPkiFactory {
     public static final Duration TSA_VALIDITY = Duration.ofDays(1825);
     public static final Duration CRL_VALIDITY = Duration.ofDays(7);
 
+    /**
+     * OID kebijakan sertifikat uji di sertifikat penanda tangan, di bawah arc contoh IANA 32473 (RFC 5612). Bukan
+     * kebijakan CA sungguhan.
+     */
+    public static final org.bouncycastle.asn1.ASN1ObjectIdentifier TEST_CERTIFICATE_POLICY =
+            new org.bouncycastle.asn1.ASN1ObjectIdentifier("1.3.6.1.4.1.32473.2.1");
+
     /** Toleransi jam: sertifikat berlaku mulai sedikit sebelum waktu pembuatan. */
     private static final Duration CLOCK_SKEW = Duration.ofMinutes(5);
 
@@ -147,6 +154,9 @@ public final class TestPkiFactory {
                     builder.addExtension(Extension.extendedKeyUsage, false,
                             new ExtendedKeyUsage(KeyPurposeId.getInstance(
                                     new org.bouncycastle.asn1.ASN1ObjectIdentifier("1.3.6.1.5.5.7.3.36"))));
+                    builder.addExtension(Extension.certificatePolicies, false,
+                            new org.bouncycastle.asn1.x509.CertificatePolicies(
+                                    new org.bouncycastle.asn1.x509.PolicyInformation(TEST_CERTIFICATE_POLICY)));
                     builder.addExtension(Extension.cRLDistributionPoints, false, crlDistributionPoint(issuer.id()));
                 });
         return new SigningCredential(algorithm, keys.getPrivate(), chainOf(cert, issuer));
