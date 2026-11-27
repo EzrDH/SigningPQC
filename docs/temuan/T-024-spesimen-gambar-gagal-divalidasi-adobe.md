@@ -83,9 +83,22 @@ bekerja. Status "validity is unknown" dan "embedded timestamp ... could not be v
 belum diimpor sebagai tepercaya di Adobe, bukan karena tanda tangannya. Rev. 2 (ML-DSA) tetap "invalid" sesuai
 T-011. Berkas G sekaligus menutup uji visual halaman berotasi yang tertunda di T-014.
 
+### Dengan root uji tepercaya (27 Nov 2026, 22.41 WIB)
+`Root-CA-Uji-RSA.crt` diimpor di Adobe lalu diberi centang "Use this certificate as a trusted root". Hasil pada
+E, F, dan G sama:
+
+| Revisi | Status di Adobe |
+|---|---|
+| Rev. 1, tanda tangan RSA (spesimen gambar) | Signature is valid, signer's identity is valid, embedded timestamp, **Signature is LTV enabled** |
+| Rev. 2, tanda tangan ML-DSA | invalid (Adobe belum mendukung ML-DSA, T-011) |
+| Rev. 3, document timestamp TSA Uji RSA G1 | Signature is valid, document timestamp, **Signature is LTV enabled** |
+
+Tangkapan layar: `img/T-024-adobe-e-root-tepercaya-ltv.png`, `img/T-024-adobe-f-root-tepercaya-ltv.png`,
+`img/T-024-adobe-g-root-tepercaya-ltv.png`. Ini juga menutup pengecekan "LTV enabled" di Adobe dari T-021.
+
 ## Tindak lanjut
-- Selesai: konfirmasi E, F, G di Adobe Reader.
-- Untuk membaca status identitas dan LTV, impor
+- Selesai: konfirmasi E, F, G di Adobe Reader, termasuk status LTV dengan root uji tepercaya.
+- Cara membuat root dipercaya (untuk pengujian berikutnya): impor
   `Root-CA-Uji-RSA.crt` sebagai root tepercaya di Adobe (Preferences, Signatures, Identities & Trusted
   Certificates).
 - Tidak dipisahkan mana dari dua perubahan yang menentukan; keduanya dipertahankan karena sama-sama bentuk yang dipakai Acrobat.

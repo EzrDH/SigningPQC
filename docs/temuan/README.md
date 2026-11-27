@@ -33,10 +33,10 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-018 | 26 Nov 2026 | Pengujian dan temuan kompatibilitas | Uji langsung di browser Windows (31 langkah, JDK 25): seluruh alur lolos, ditemukan intersepsi HTTP 204 pada `POST /api/me/sign` oleh pengelola unduhan karena `Content-Disposition: attachment` | Lulus dengan temuan |
 | T-019 | 27 Nov 2026 | Temuan | Bukti pada detail verifikasi: OID algoritma dan kebijakan, sidik jari SHA-256, CRL beserta sumbernya, jangkar kepercayaan, revisi yang ditutup tiap tanda tangan, dan tab "Lapisan dokumen" (DSS dan document timestamp) | Diperbaiki |
 | T-020 | 27 Nov 2026 | Pengujian | Halaman Lingkungan uji (CA, TSA, penanda tangan, cabut) dan log aktivitas lokal perangkat (siapa, kapan, berkas, hasil) | Lulus |
-| T-021 | 27 Nov 2026 | Pengujian dan temuan kompatibilitas | TC-05: B-LT dan B-LTA dari aplikasi sah di validator aplikasi dan pyHanko tanpa CRL daring; pyHanko menerima ML-DSA-65 | Lulus (Adobe menyusul) |
+| T-021 | 27 Nov 2026 | Pengujian dan temuan kompatibilitas | TC-05: B-LT dan B-LTA dari aplikasi sah di validator aplikasi dan pyHanko tanpa CRL daring; pyHanko menerima ML-DSA-65 | Lulus (Adobe: LTV enabled, T-024) |
 | T-022 | 27 Nov 2026 | Temuan keamanan dependensi | Lima kerentanan moderate `npm audit` (glob, minimatch lewat @vue/test-utils, khusus pengembangan) diatasi dengan overrides | Diperbaiki |
 | T-023 | 27 Nov 2026 | Temuan keamanan | Folder keluaran diperiksa ulang saat menyimpan: tautan simbolik atau junction ke folder data yang dibuat sesudah Pengaturan disimpan kini ditolak 409 sebelum kunci dibuka | Diperbaiki |
-| T-024 | 27 Nov 2026 | Temuan kompatibilitas | Tanda tangan RSA dengan spesimen gambar gagal divalidasi Adobe Reader ("An error occurred ..."); gambar kini dibungkus form XObject dalam dan /DecodeParms ditulis langsung | Diperbaiki (dikonfirmasi Adobe) |
+| T-024 | 27 Nov 2026 | Temuan kompatibilitas | Tanda tangan RSA dengan spesimen gambar gagal divalidasi Adobe Reader ("An error occurred ..."); gambar kini dibungkus form XObject dalam dan /DecodeParms ditulis langsung; dengan root uji tepercaya RSA dan document timestamp "LTV enabled" | Diperbaiki (dikonfirmasi Adobe) |
 
 ## Templat
 

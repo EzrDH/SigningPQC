@@ -7,7 +7,7 @@
 | Sprint | 3 |
 | Kebutuhan terkait | KF-16, KF-17, TC-05 (juga menyentuh KNF-03) |
 | Lingkungan | Container Linux, Temurin JDK 25.0.1, backend `app-server` jar dari branch `sprint3-halaman-pki-log`, pyHanko 0.38.2 (CLI 0.6.0), pyhanko-certvalidator 0.33.0, cryptography 50.0.2 |
-| Status | Lulus di validator aplikasi dan pyHanko. Uji di Adobe Reader digabung dengan uji spesimen (lihat tindak lanjut) |
+| Status | Lulus di validator aplikasi dan pyHanko. Adobe Reader: RSA dan document timestamp sah dan "LTV enabled" (T-024) |
 
 ## Tujuan
 TC-05: "Tambahkan B-LT dan B-LTA. Hasil yang diharapkan: DSS dan document timestamp ada, dan validasi tetap sah."
@@ -73,6 +73,7 @@ and form filling operations".
   tidak wajib.
 
 ## Tindak lanjut
-- Buka `tc05-surat-ttd.pdf` di Adobe Reader di laptop dan periksa apakah tanda tangan RSA dinyatakan "LTV enabled"
-  setelah Root CA Uji RSA dipercaya. Ini digabung dengan butir 5 Sprint 3 (pengecekan spesimen di Adobe).
+- ~~Buka `tc05-surat-ttd.pdf` di Adobe Reader di laptop dan periksa apakah tanda tangan RSA dinyatakan "LTV enabled"
+  setelah Root CA Uji RSA dipercaya.~~ Selesai 27 Nov 2026: tanda tangan RSA dan document timestamp dinyatakan
+  "LTV enabled" oleh Adobe (T-024).
 - Pertimbangkan pyHanko sebagai validator pembanding di laporan pengujian Sprint 5, di samping validator aplikasi.
