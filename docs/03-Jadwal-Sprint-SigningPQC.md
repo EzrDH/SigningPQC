@@ -76,7 +76,7 @@ Demo Jumat 11 Des: seluruh alur TTE dijalankan dari Vue.
 
 - [x] Kamus DSS dan VRI (KF-16) serta document timestamp (KF-17) (selesai 25 Nov, T-012)
 - [x] Verifikasi document timestamp (KF-22) (selesai 25 Nov, T-012)
-- [ ] Halaman CA, sertifikat, TSA uji, dan log aktivitas (KF-34, KF-35)
+- [x] Halaman CA, sertifikat, TSA uji, dan log aktivitas (KF-34, KF-35) (selesai 27 Nov, T-020)
 - [ ] Uji TC-05 dan uji ulang seluruh alur, perbaikan bug
 - [ ] README cara menjalankan dan panduan singkat
 

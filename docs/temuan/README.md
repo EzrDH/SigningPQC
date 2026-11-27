@@ -32,6 +32,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-017 | 26 Nov 2026 | Temuan | Status verifikasi mengikuti ETSI EN 319 102-1: penerbit tak dikenal menjadi "tidak dapat dibuktikan", tanda tangan sah tanpa pasangan RSA+ML-DSA menjadi sah dengan peringatan "bukan hybrid" (revisi 27 Nov) | Diperbaiki |
 | T-018 | 26 Nov 2026 | Pengujian dan temuan kompatibilitas | Uji langsung di browser Windows (31 langkah, JDK 25): seluruh alur lolos, ditemukan intersepsi HTTP 204 pada `POST /api/me/sign` oleh pengelola unduhan karena `Content-Disposition: attachment` | Lulus dengan temuan |
 | T-019 | 27 Nov 2026 | Temuan | Bukti pada detail verifikasi: OID algoritma dan kebijakan, sidik jari SHA-256, CRL beserta sumbernya, jangkar kepercayaan, revisi yang ditutup tiap tanda tangan, dan tab "Lapisan dokumen" (DSS dan document timestamp) | Diperbaiki |
+| T-020 | 27 Nov 2026 | Pengujian | Halaman Lingkungan uji (CA, TSA, penanda tangan, cabut) dan log aktivitas lokal perangkat (siapa, kapan, berkas, hasil) | Lulus |
 
 ## Templat
 

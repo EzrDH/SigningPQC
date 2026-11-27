@@ -17,6 +17,11 @@ export const router = createRouter({
     { path: '/tandatangani', component: () => import('../views/TandatanganiView.vue'), meta: { nav: 'beranda' } },
     { path: '/verifikasi', component: () => import('../views/VerifikasiView.vue'), meta: { nav: 'beranda' } },
     { path: '/pengaturan', component: () => import('../views/PengaturanView.vue'), meta: { nav: 'pengaturan' } },
+    {
+      path: '/lingkungan-uji',
+      component: () => import('../views/LingkunganUjiView.vue'),
+      meta: { nav: 'pengaturan' },
+    },
     { path: '/profil', component: () => import('../views/ProfilView.vue'), meta: { nav: 'profil' } },
     { path: '/:rest(.*)*', redirect: '/' },
   ],

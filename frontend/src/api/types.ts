@@ -161,3 +161,51 @@ export interface SavedDocument {
   savedPath: string
   pdfBase64: string
 }
+
+/** Halaman Lingkungan uji (KF-34): status PKI uji dari GET /api/pki. */
+export interface PkiCertificate {
+  subject: string
+  issuer: string
+  algorithm: string
+  serialHex: string
+  notBefore: string
+  notAfter: string
+}
+
+export interface PkiAuthority {
+  id: string
+  family: string
+  certificate: PkiCertificate
+}
+
+export interface PkiSigner {
+  id: string
+  commonName: string
+  title: string | null
+  unit: string | null
+  revoked: boolean
+  account: boolean
+  createdAt: string
+  rsa: PkiCertificate
+  mlDsa: PkiCertificate
+}
+
+export interface PkiStatus {
+  ready: boolean
+  organization: string | null
+  createdAt: string | null
+  dataDir: string
+  cas: PkiAuthority[]
+  tsas: PkiAuthority[]
+  signers: PkiSigner[]
+}
+
+/** Log aktivitas perangkat (KF-35) dari GET /api/me/activity. */
+export interface ActivityEntry {
+  time: string
+  actor: string
+  action: string
+  fileName: string | null
+  result: string
+  detail: string | null
+}

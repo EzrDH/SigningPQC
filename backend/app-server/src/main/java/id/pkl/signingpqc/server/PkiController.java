@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -53,8 +55,9 @@ public class PkiController {
     public record CaInfo(String id, String family, CertificateInfo certificate) {
     }
 
+    /** @param account true bila sertifikat milik akun aplikasi (kuncinya terbungkus passphrase akun) */
     public record SignerInfo(String id, String commonName, String title, String unit, boolean revoked,
-            CertificateInfo rsa, CertificateInfo mlDsa) {
+            boolean account, Instant createdAt, CertificateInfo rsa, CertificateInfo mlDsa) {
     }
 
     public record Status(boolean ready, String organization, Instant createdAt, String dataDir, List<CaInfo> cas,
@@ -62,9 +65,13 @@ public class PkiController {
     }
 
     private final PkiService pki;
+    private final ActivityLog activity;
+    private final id.pkl.signingpqc.server.account.Actors actors;
 
-    public PkiController(PkiService pki) {
+    public PkiController(PkiService pki, ActivityLog activity, id.pkl.signingpqc.server.account.Actors actors) {
         this.pki = pki;
+        this.activity = activity;
+        this.actors = actors;
     }
 
     @GetMapping
@@ -90,8 +97,13 @@ public class PkiController {
 
     @PostMapping("/setup")
     public ResponseEntity<Status> setup(@RequestBody SetupRequest request,
-            @RequestParam(defaultValue = "false") boolean reset) throws GeneralSecurityException, IOException {
-        pki.setup(request.organization(), reset);
+            @RequestParam(defaultValue = "false") boolean reset,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization)
+            throws GeneralSecurityException, IOException {
+        // Pelaku dibaca sebelum setup, karena reset menghapus akun dan sesi.
+        String actor = actors.byAuthorization(authorization);
+        activity.track(actor, reset ? "Mengatur ulang PKI uji" : "Membuat PKI uji", null, null,
+                s -> s.organization(), () -> pki.setup(request.organization(), reset));
         return ResponseEntity.status(HttpStatus.CREATED).body(status());
     }
 
@@ -101,15 +113,21 @@ public class PkiController {
     }
 
     @PostMapping("/signers")
-    public ResponseEntity<SignerInfo> issue(@RequestBody SignerRequest request)
+    public ResponseEntity<SignerInfo> issue(@RequestBody SignerRequest request,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization)
             throws GeneralSecurityException, IOException {
-        PkiService.SignerRecord record = pki.issueSigner(request.commonName(), request.title(), request.unit());
+        PkiService.SignerRecord record = activity.track(actors.byAuthorization(authorization), "Menerbitkan sertifikat",
+                null, null, PkiService.SignerRecord::commonName,
+                () -> pki.issueSigner(request.commonName(), request.title(), request.unit()));
         return ResponseEntity.status(HttpStatus.CREATED).body(info(record));
     }
 
     @PostMapping("/signers/{id}/revoke")
-    public SignerInfo revoke(@PathVariable String id) throws IOException {
-        return info(pki.revoke(id));
+    public SignerInfo revoke(@PathVariable String id,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization)
+            throws IOException, GeneralSecurityException {
+        return info(activity.track(actors.byAuthorization(authorization), "Mencabut sertifikat", null, null,
+                PkiService.SignerRecord::commonName, () -> pki.revoke(id)));
     }
 
     @GetMapping(value = "/crl/{caId}.crl", produces = "application/pkix-crl")
@@ -127,10 +145,16 @@ public class PkiController {
         return id.pkl.signingpqc.core.Pem.certificate(pki.caCertificate(caId));
     }
 
+    /** Sertifikat TSA uji (misalnya rsa-g1, rsa-g2, mldsa) untuk diperiksa di luar aplikasi. */
+    @GetMapping(value = "/tsa/{tsaId}.crt", produces = "application/pkix-cert")
+    public byte[] tsaCertificate(@PathVariable String tsaId) throws GeneralSecurityException {
+        return pki.tsa(tsaId).certificate().getEncoded();
+    }
+
     private SignerInfo info(PkiService.SignerRecord record) {
         java.util.List<java.security.cert.X509Certificate> certificates = pki.signerCertificates(record.id());
         return new SignerInfo(record.id(), record.commonName(), record.title(), record.unit(), record.revoked(),
-                CertificateInfo.of(certificates.get(0)), CertificateInfo.of(certificates.get(1)));
+                record.isAccount(), record.createdAt(), CertificateInfo.of(certificates.get(0)), CertificateInfo.of(certificates.get(1)));
     }
 
     static Map<String, String> message(String text) {
