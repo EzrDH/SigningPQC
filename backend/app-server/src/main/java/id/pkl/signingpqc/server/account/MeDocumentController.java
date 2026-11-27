@@ -18,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import id.pkl.signingpqc.core.VisibleSignature;
 import id.pkl.signingpqc.core.ltv.LtvService;
 import id.pkl.signingpqc.pki.SignerPair;
+import id.pkl.signingpqc.server.ActivityLog;
 import id.pkl.signingpqc.server.ApiException;
 import id.pkl.signingpqc.server.PkiService;
 import id.pkl.signingpqc.server.RequestInputs;
@@ -41,8 +42,13 @@ public class MeDocumentController {
     private final VerifyService verifier;
     private final TsaService tsa;
 
+    private final ActivityLog activity;
+    private final Actors actors;
+
     public MeDocumentController(AccountStore store, AccountService accounts, PkiService pki, SigningService signing,
-            HistoryStore history, VerifyService verifier, TsaService tsa) {
+            HistoryStore history, VerifyService verifier, TsaService tsa, ActivityLog activity, Actors actors) {
+        this.activity = activity;
+        this.actors = actors;
         this.store = store;
         this.accounts = accounts;
         this.pki = pki;
@@ -59,12 +65,21 @@ public class MeDocumentController {
             @RequestParam(required = false) Float width, @RequestParam(required = false) Float height,
             @RequestParam(required = false) String passphrase, @RequestParam(required = false) String code)
             throws IOException, GeneralSecurityException {
+        return activity.track(actors.byId(accountId), "Menandatangani", file.getOriginalFilename(), null,
+                MeDocumentController::savedAs, () -> signDocument(accountId, file, page, x, y, width, height,
+                        passphrase, code));
+    }
+
+    private SavedDocument signDocument(String accountId, MultipartFile file, int page, Float x, Float y, Float width,
+            Float height, String passphrase, String code) throws IOException, GeneralSecurityException {
         Account account = store.byId(accountId).orElseThrow(() -> ApiException.notFound("Akun tidak ditemukan"));
         byte[] pdf = RequestInputs.pdf(file);
         PkiService.SignerRecord record = pki.signerRecord(account.signerId());
         if (record.revoked()) {
             throw ApiException.conflict("Sertifikat Anda sudah dicabut");
         }
+        // Diperiksa sebelum kunci dibuka, supaya kode TOTP tidak terpakai untuk tanda tangan yang tidak bisa disimpan.
+        OutputFolder.requireOutside(Path.of(account.outputDir()), pki.dataDir());
         VisibleSignature visible = null;
         if (account.appearance() == Account.Appearance.VISIBLE) {
             Path specimen = store.dir(accountId).resolve("specimen.png");
@@ -73,7 +88,8 @@ public class MeDocumentController {
         }
         SignerPair pair = accounts.unlock(account, passphrase, code);
         byte[] signed = signing.signHybrid(pdf, pair, record, visible);
-        Path saved = OutputFolder.save(Path.of(account.outputDir()), file.getOriginalFilename(), "-ttd", signed);
+        Path saved = OutputFolder.save(Path.of(account.outputDir()), pki.dataDir(), file.getOriginalFilename(), "-ttd",
+                signed);
         history.add(accountId, new HistoryStore.Entry(saved.getFileName().toString(), "Ditandatangani", Instant.now(),
                 "SAH", saved.toString()));
         return SavedDocument.of(signed, saved);
@@ -82,18 +98,36 @@ public class MeDocumentController {
     /** Verifikasi untuk pengguna: tanpa waktu simulasi, dicatat di riwayat. */
     @PostMapping(value = "/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public VerifyService.VerifyResponse verify(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
-            @RequestPart("file") MultipartFile file) throws IOException {
-        VerifyService.VerifyResponse result = verifier.verify(RequestInputs.pdf(file), file.getOriginalFilename(), null);
-        String status = result.signatures().isEmpty() ? "TANPA_TANDA_TANGAN"
+            @RequestPart("file") MultipartFile file) throws IOException, GeneralSecurityException {
+        return activity.track(actors.byId(accountId), "Memverifikasi", file.getOriginalFilename(),
+                MeDocumentController::status, null, () -> {
+                    VerifyService.VerifyResponse result = verifier.verify(RequestInputs.pdf(file),
+                            file.getOriginalFilename(), null);
+                    history.add(accountId, new HistoryStore.Entry(displayName(file), "Diverifikasi", Instant.now(),
+                            status(result), null));
+                    return result;
+                });
+    }
+
+    static String status(VerifyService.VerifyResponse result) {
+        return result.signatures().isEmpty() ? "TANPA_TANDA_TANGAN"
                 : result.validation() == null ? "TIDAK_DIPERIKSA" : result.validation().status().name();
-        history.add(accountId, new HistoryStore.Entry(displayName(file), "Diverifikasi", Instant.now(), status, null));
-        return result;
+    }
+
+    private static String savedAs(SavedDocument saved) {
+        return "Tersimpan sebagai " + saved.fileName();
     }
 
     /** Perpanjangan keabsahan dengan TSA ML-DSA; hanya bila hasil verifikasi menyarankannya. */
     @PostMapping(value = "/renew", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SavedDocument renew(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
             @RequestPart("file") MultipartFile file) throws IOException, GeneralSecurityException {
+        return activity.track(actors.byId(accountId), "Memperpanjang keabsahan", file.getOriginalFilename(), null,
+                MeDocumentController::savedAs, () -> renewDocument(accountId, file));
+    }
+
+    private SavedDocument renewDocument(String accountId, MultipartFile file)
+            throws IOException, GeneralSecurityException {
         Account account = store.byId(accountId).orElseThrow(() -> ApiException.notFound("Akun tidak ditemukan"));
         byte[] pdf = RequestInputs.pdf(file);
         VerifyService.VerifyResponse result = verifier.verify(pdf, file.getOriginalFilename(), null);
@@ -102,7 +136,8 @@ public class MeDocumentController {
         }
         byte[] renewed = LtvService.renew(pdf, pki.revocationSource(Instant.now()), tsa.client(RENEW_TSA, null),
                 TsaService.profile(RENEW_TSA));
-        Path saved = OutputFolder.save(Path.of(account.outputDir()), file.getOriginalFilename(), "-diperpanjang", renewed);
+        Path saved = OutputFolder.save(Path.of(account.outputDir()), pki.dataDir(), file.getOriginalFilename(),
+                "-diperpanjang", renewed);
         history.add(accountId, new HistoryStore.Entry(saved.getFileName().toString(), "Diperpanjang", Instant.now(),
                 "SAH", saved.toString()));
         return SavedDocument.of(renewed, saved);

@@ -118,6 +118,10 @@ Sebanyak 27 uji lama tetap sesuai. Ada 6 uji baru atas token document timestamp 
 Menunggu tangkapan layar `06` dan `07`. Harapan: Adobe menampilkan "LTV enabled" untuk lapisan RSA, dan timestamp
 ML-DSA ditandai tidak sah, sama seperti tanda tangan ML-DSA di T-011.
 
+Pembaruan 27 Nov 2026: untuk dokumen B-LTA dari aplikasi, Adobe sudah menyatakan tanda tangan RSA dan document
+timestamp RSA "LTV enabled" setelah root uji dipercaya (T-024). Berkas `06` dan `07` (pembaruan sampai TSA ML-DSA)
+belum dicek di Adobe dan PdfCraft.
+
 ### Perbaikan hasil review akhir
 Review seluruh branch menemukan empat celah. Masing-masing dibuktikan dulu dengan uji yang gagal, lalu diperbaiki.
 Setelah perbaikan, seluruh uji lolos: **81 dari 81** (signer-core 7, pki-test 62, app-server 12). Angka ini dari

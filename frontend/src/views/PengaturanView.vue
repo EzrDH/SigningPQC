@@ -184,6 +184,14 @@ async function saveDir() {
         </form>
         <p v-if="dirError" class="err" role="alert" style="margin-top: 10px">{{ dirError }}</p>
       </div>
+
+      <div class="box">
+        <h3 style="margin-bottom: 12px">Lingkungan uji</h3>
+        <div class="path">
+          <code>CA, TSA, penanda tangan, dan log aktivitas</code>
+          <RouterLink class="btn" to="/lingkungan-uji">Buka</RouterLink>
+        </div>
+      </div>
     </template>
     <p v-else-if="!error" class="hint">Memuat pengaturan…</p>
 

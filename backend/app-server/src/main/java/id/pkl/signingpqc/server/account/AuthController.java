@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import id.pkl.signingpqc.server.ActivityLog;
+
 /** Daftar, masuk, dan keluar. Password dan passphrase tidak pernah dikembalikan atau dicatat. */
 @RestController
 @RequestMapping("/api/auth")
@@ -36,10 +38,14 @@ public class AuthController {
 
     private final AccountService accounts;
     private final SessionService sessions;
+    private final ActivityLog activity;
+    private final Actors actors;
 
-    public AuthController(AccountService accounts, SessionService sessions) {
+    public AuthController(AccountService accounts, SessionService sessions, ActivityLog activity, Actors actors) {
         this.accounts = accounts;
         this.sessions = sessions;
+        this.activity = activity;
+        this.actors = actors;
     }
 
     @PostMapping("/register/start")
@@ -51,17 +57,25 @@ public class AuthController {
     @PostMapping("/register/finish")
     public Map<String, String> registerFinish(@RequestBody FinishRequest request)
             throws GeneralSecurityException, IOException {
-        return session(accounts.registerFinish(request.registrationId(), request.code()));
+        AccountService.Session session = accounts.registerFinish(request.registrationId(), request.code());
+        activity.add(session.account().username(), "Mendaftar", null, ActivityLog.SUCCESS, null);
+        return session(session);
     }
 
     @PostMapping("/login")
-    public Map<String, String> login(@RequestBody LoginRequest request) {
-        return session(accounts.login(request.login(), chars(request.password())));
+    public Map<String, String> login(@RequestBody LoginRequest request) throws IOException, GeneralSecurityException {
+        return session(activity.track(actors.byLogin(request.login()), "Masuk", null, null, null,
+                () -> accounts.login(request.login(), chars(request.password()))));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String header) {
-        sessions.remove(AuthInterceptor.bearer(header));
+        String token = AuthInterceptor.bearer(header);
+        String accountId = sessions.accountId(token).orElse(null);
+        sessions.remove(token);
+        if (accountId != null) {
+            activity.add(actors.byId(accountId), "Keluar", null, ActivityLog.SUCCESS, null);
+        }
         return ResponseEntity.noContent().build();
     }
 

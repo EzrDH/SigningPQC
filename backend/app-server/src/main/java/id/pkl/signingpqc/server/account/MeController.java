@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import id.pkl.signingpqc.server.ActivityLog;
 import id.pkl.signingpqc.server.ApiException;
 import id.pkl.signingpqc.server.PkiService;
 
@@ -60,7 +61,11 @@ public class MeController {
     private final HistoryStore history;
     private final Path dataDir;
 
-    public MeController(AccountStore store, AccountService accounts, PkiService pki, HistoryStore history) {
+    private final ActivityLog activity;
+
+    public MeController(AccountStore store, AccountService accounts, PkiService pki, HistoryStore history,
+            ActivityLog activity) {
+        this.activity = activity;
         this.dataDir = pki.dataDir();
         this.store = store;
         this.accounts = accounts;
@@ -76,6 +81,26 @@ public class MeController {
     @PutMapping("/settings")
     public MeResponse settings(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
             @RequestBody SettingsRequest request) throws GeneralSecurityException, IOException {
+        return activity.track(account(accountId).username(), "Mengubah pengaturan", null, null,
+                r -> settingsDetail(request), () -> applySettings(accountId, request));
+    }
+
+    private static String settingsDetail(SettingsRequest request) {
+        List<String> parts = new java.util.ArrayList<>();
+        if (request.confirmMethod() != null) {
+            parts.add("Konfirmasi " + request.confirmMethod());
+        }
+        if (request.appearance() != null) {
+            parts.add("Tampilan " + request.appearance());
+        }
+        if (request.outputDir() != null) {
+            parts.add("Folder keluaran " + request.outputDir());
+        }
+        return String.join(", ", parts);
+    }
+
+    private MeResponse applySettings(String accountId, SettingsRequest request)
+            throws GeneralSecurityException, IOException {
         Account account = account(accountId);
         String outputDir = request.outputDir() == null ? null : usableFolder(request.outputDir());
         if (request.confirmMethod() != null) {
@@ -93,7 +118,12 @@ public class MeController {
 
     @PutMapping(value = "/specimen", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public MeResponse uploadSpecimen(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId,
-            @RequestPart("file") MultipartFile file) throws IOException {
+            @RequestPart("file") MultipartFile file) throws IOException, GeneralSecurityException {
+        return activity.track(account(accountId).username(), "Mengganti spesimen", file.getOriginalFilename(), null,
+                null, () -> saveSpecimen(accountId, file));
+    }
+
+    private MeResponse saveSpecimen(String accountId, MultipartFile file) throws IOException {
         if (file.getSize() > SPECIMEN_MAX_BYTES) {
             throw ApiException.badRequest("Spesimen maksimal 1 MB");
         }
@@ -125,6 +155,12 @@ public class MeController {
     @GetMapping("/history")
     public List<HistoryStore.Entry> history(@RequestAttribute(AuthInterceptor.ACCOUNT_ID) String accountId) {
         return history.latest(accountId);
+    }
+
+    /** Log aktivitas perangkat ini (semua akun), terbaru di depan (KF-35). */
+    @GetMapping("/activity")
+    public List<ActivityLog.Entry> activity() {
+        return activity.latest();
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -192,23 +228,6 @@ public class MeController {
      * ikut diikuti), sisanya ditempel dalam bentuk normal.
      */
     private boolean insideDataDir(Path folder) {
-        Path data = realOrNormal(dataDir.toAbsolutePath());
-        return realOrNormal(folder.toAbsolutePath()).startsWith(data);
-    }
-
-    private static Path realOrNormal(Path path) {
-        Path normal = path.normalize();
-        Path existing = normal;
-        while (existing != null && !Files.exists(existing)) {
-            existing = existing.getParent();
-        }
-        if (existing == null) {
-            return normal;
-        }
-        try {
-            return existing.toRealPath().resolve(existing.relativize(normal));
-        } catch (IOException e) {
-            return normal;
-        }
+        return OutputFolder.inside(folder, dataDir);
     }
 }

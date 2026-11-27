@@ -65,7 +65,7 @@ Halaman 180 derajat tidak menukar ukuran, tetapi tanpa Matrix isinya tampil terb
 
 ## Keterbatasan yang tersisa
 - ~~Frontend memakai CropBox, backend memakai MediaBox.~~ Sudah diperbaiki setelah review akhir: backend kini juga mengukur koordinat dari pojok kiri atas CropBox (lihat bagian "Perbaikan setelah review akhir").
-- Hasil visual di Adobe Acrobat Reader belum dicek. Rencananya dicek bersama tangkapan layar T-012. Uji browser T-015 sudah memastikan posisi dan orientasi spesimen pada render pdftoppm (Poppler) untuk halaman rotasi 90.
+- ~~Hasil visual di Adobe Acrobat Reader belum dicek.~~ Sudah dicek 27 Nov 2026: spesimen tampil tegak di halaman rotasi 90 (T-024, berkas G). Rencananya dicek bersama tangkapan layar T-012. Uji browser T-015 sudah memastikan posisi dan orientasi spesimen pada render pdftoppm (Poppler) untuk halaman rotasi 90.
 
 ## Perbaikan setelah review akhir
 Review akhir seluruh cabang menemukan dua masalah lain yang masih terkait posisi kotak. Keduanya sudah diperbaiki, dan setiap perbaikan diawali uji yang gagal.

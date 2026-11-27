@@ -58,4 +58,4 @@ Tinjauan keamanan ulang di laptop atas `LoginGuard`, `AccountService`, dan `MeCo
 
 ## Tindak lanjut
 - ~~Jalankan ulang `.\mvnw.cmd -B test` di laptop dengan JDK 25~~ selesai, 145/145 lolos.
-- Opsional: panggil pemeriksaan folder data juga di `OutputFolder.save`, supaya junction yang dibuat belakangan ikut tertolak.
+- ~~Opsional: panggil pemeriksaan folder data juga di `OutputFolder.save`, supaya junction yang dibuat belakangan ikut tertolak.~~ Selesai 27 Nov (T-023).
