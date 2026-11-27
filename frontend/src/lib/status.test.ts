@@ -141,4 +141,11 @@ describe('describeResult', () => {
     expect(d.title).toBe('Keabsahan tidak dapat dibuktikan')
     expect(d.subtitle).toContain('Penerbit sertifikat tidak dikenal oleh aplikasi ini')
   })
+
+  it('dokumen hybrid yang diubah tidak menyebut hybrid tidak lengkap (T-018)', () => {
+    const r = response('TIDAK_SAH', { codes: ['DOKUMEN_BERUBAH'], warnings: ['TANDA_TANGAN_HYBRID_TIDAK_LENGKAP'] })
+    r.signatures.push({ ...r.signatures[0]!, order: 2, signatureAlgorithm: 'ML-DSA-65' })
+    const d = describeResult(r)
+    expect(d.subtitle).toBe('Isi dokumen berubah setelah ditandatangani')
+  })
 })

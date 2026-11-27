@@ -9,7 +9,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Plus Jakarta
 h1{font-size:clamp(26px,3.2vw,36px);line-height:1.05;letter-spacing:-.02em;margin:0 0 6px;font-weight:700}
 h2{font-size:22px;line-height:1.2;letter-spacing:-.01em;margin:0;font-weight:700}
 h3{font-size:15px;margin:0;font-weight:700}
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within{outline:3px solid var(--pri);outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,label:has(input[type=radio]:focus-visible),label:has(input[type=file]:focus-visible){outline:3px solid var(--pri);outline-offset:2px}
 .logo{width:34px;height:34px;flex:none}
 .top-nav{display:flex;align-items:center;justify-content:center;gap:10px;padding:0 24px;height:64px;border-bottom:1px solid var(--line)}
 .top-nav a{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;color:var(--mut)}

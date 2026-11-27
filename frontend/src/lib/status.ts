@@ -95,7 +95,13 @@ export function describeResult(res: VerifyResponse): ResultDescription {
     }
   }
   const codes = [...new Set([...v.layers.map((l) => l.code), ...v.warnings].filter((c) => c && c !== 'OK'))]
-  const problems = codes.filter((c) => c !== 'DICABUT_SETELAH_DITANDATANGANI' || v.status !== 'SAH')
+  const hasBoth = (['RSA', 'ML-DSA'] as const).every((f) => res.signatures.some((s) => s.signatureAlgorithm.startsWith(f)))
+  // Dokumen yang memuat RSA dan ML-DSA tetapi rusak: penyebab utamanya (misalnya isi berubah) cukup disebut sendiri (T-018).
+  const problems = codes.filter(
+    (c) =>
+      (c !== 'DICABUT_SETELAH_DITANDATANGANI' || v.status !== 'SAH') &&
+      (c !== 'TANDA_TANGAN_HYBRID_TIDAK_LENGKAP' || !hasBoth || v.status !== 'TIDAK_SAH'),
+  )
   const first = res.signatures[0]!
   const signedAt = first.signatureTimestamp?.time ?? first.claimedSigningTime
   const change = codes.find((c) => CHANGE.includes(c))

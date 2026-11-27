@@ -102,3 +102,10 @@ Uji ini menemukan **1 masalah kompatibilitas penting pada lingkungan Windows**: 
    - Persempit selector `label:focus-within` di `style.css` agar hanya berlaku untuk label pembungkus input tersembunyi/radio (`.drop`, `.choice label`, `.specprev label`) dan tidak membungkus `.field`.
    - Samakan lebar `.fname` di `VerifikasiView.vue` dengan `TandatanganiView.vue` agar sejajar dinamis dengan lebar halaman PDF lanskap maupun tegak.
 3. **Catatan demo:** Saat memperagakan daftar lalu langsung tanda tangan dengan TOTP, pastikan kode 6 digit di authenticator sudah berganti periode (atau gunakan metode Passphrase) agar tidak terkena penolakan *anti-replay* TOTP.
+
+## Pembaruan 27 Nov 2026
+- Temuan 1 (intersepsi HTTP 204 oleh IDM) sudah diperbaiki di T-015 temuan 7: `/api/me/sign` dan `/api/me/renew` kini membalas JSON. Judul merah untuk dokumen RSA saja kini kuning sesuai T-017.
+- Perbaikan UX ringan dari tindak lanjut nomor 2 sudah dikerjakan:
+  - Ring fokus kini hanya untuk label yang membungkus radio atau input berkas (`label:has(input[type=radio|file]:focus-visible)`). Kotak `.field` di layar Masuk tidak lagi dibungkus. Sudah dicek dengan tangkapan layar Chromium headless.
+  - Subjudul dokumen yang memuat RSA dan ML-DSA tetapi tidak sah tidak lagi menyebut "Tanda tangan RSA dan ML-DSA tidak lengkap". Uji `status.test.ts` gagal sebelum perbaikan. Sesudahnya frontend lolos 49/49.
+  - Lebar nama berkas di layar Verifikasi kini mengikuti lebar halaman PDF yang tampil, sama seperti layar Tandatangani.

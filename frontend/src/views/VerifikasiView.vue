@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
-import PdfViewer from '../components/PdfViewer.vue'
+import PdfViewer, { type PageInfo } from '../components/PdfViewer.vue'
 import SignatureDetail from '../components/SignatureDetail.vue'
 import VerifyResult from '../components/VerifyResult.vue'
 import { api } from '../api/client'
@@ -11,6 +11,8 @@ import { savedFile } from '../lib/saved'
 import { describeResult } from '../lib/status'
 import { useDocument } from '../stores/document'
 
+// Lebar halaman yang tampil, agar nama berkas sejajar dengan halaman tegak maupun lanskap (T-018).
+const pageWidth = ref<number | null>(null)
 const router = useRouter()
 const doc = useDocument()
 
@@ -69,8 +71,13 @@ onMounted(async () => {
 <template>
   <div class="work">
     <div class="viewer">
-      <div class="fname"><b>{{ doc.file?.name }}</b></div>
-      <PdfViewer v-if="doc.bytes" :data="doc.bytes" @error="error = $event" />
+      <div class="fname" :style="pageWidth ? { maxWidth: pageWidth + 'px' } : undefined"><b>{{ doc.file?.name }}</b></div>
+      <PdfViewer
+        v-if="doc.bytes"
+        :data="doc.bytes"
+        @page="(p: PageInfo) => (pageWidth = p.viewport.width)"
+        @error="error = $event"
+      />
     </div>
     <div class="panel">
       <p v-if="loading" class="hint" role="status">Memeriksa tanda tangan…</p>
