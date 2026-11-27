@@ -228,23 +228,6 @@ public class MeController {
      * ikut diikuti), sisanya ditempel dalam bentuk normal.
      */
     private boolean insideDataDir(Path folder) {
-        Path data = realOrNormal(dataDir.toAbsolutePath());
-        return realOrNormal(folder.toAbsolutePath()).startsWith(data);
-    }
-
-    private static Path realOrNormal(Path path) {
-        Path normal = path.normalize();
-        Path existing = normal;
-        while (existing != null && !Files.exists(existing)) {
-            existing = existing.getParent();
-        }
-        if (existing == null) {
-            return normal;
-        }
-        try {
-            return existing.toRealPath().resolve(existing.relativize(normal));
-        } catch (IOException e) {
-            return normal;
-        }
+        return OutputFolder.inside(folder, dataDir);
     }
 }

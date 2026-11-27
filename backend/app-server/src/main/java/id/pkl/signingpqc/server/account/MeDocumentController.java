@@ -78,6 +78,8 @@ public class MeDocumentController {
         if (record.revoked()) {
             throw ApiException.conflict("Sertifikat Anda sudah dicabut");
         }
+        // Diperiksa sebelum kunci dibuka, supaya kode TOTP tidak terpakai untuk tanda tangan yang tidak bisa disimpan.
+        OutputFolder.requireOutside(Path.of(account.outputDir()), pki.dataDir());
         VisibleSignature visible = null;
         if (account.appearance() == Account.Appearance.VISIBLE) {
             Path specimen = store.dir(accountId).resolve("specimen.png");
@@ -86,7 +88,8 @@ public class MeDocumentController {
         }
         SignerPair pair = accounts.unlock(account, passphrase, code);
         byte[] signed = signing.signHybrid(pdf, pair, record, visible);
-        Path saved = OutputFolder.save(Path.of(account.outputDir()), file.getOriginalFilename(), "-ttd", signed);
+        Path saved = OutputFolder.save(Path.of(account.outputDir()), pki.dataDir(), file.getOriginalFilename(), "-ttd",
+                signed);
         history.add(accountId, new HistoryStore.Entry(saved.getFileName().toString(), "Ditandatangani", Instant.now(),
                 "SAH", saved.toString()));
         return SavedDocument.of(signed, saved);
@@ -133,7 +136,8 @@ public class MeDocumentController {
         }
         byte[] renewed = LtvService.renew(pdf, pki.revocationSource(Instant.now()), tsa.client(RENEW_TSA, null),
                 TsaService.profile(RENEW_TSA));
-        Path saved = OutputFolder.save(Path.of(account.outputDir()), file.getOriginalFilename(), "-diperpanjang", renewed);
+        Path saved = OutputFolder.save(Path.of(account.outputDir()), pki.dataDir(), file.getOriginalFilename(),
+                "-diperpanjang", renewed);
         history.add(accountId, new HistoryStore.Entry(saved.getFileName().toString(), "Diperpanjang", Instant.now(),
                 "SAH", saved.toString()));
         return SavedDocument.of(renewed, saved);
