@@ -202,16 +202,19 @@ class DocumentValidatorTest {
         assertTrue(hasCode(report, ReasonCode.ROOT_TIDAK_DIPERCAYA), report.toString());
     }
 
-    /** KF-23: hanya RSA + ML-DSA yang "sah hybrid"; RSA sah tanpa ML-DSA tidak memenuhi kebijakan, bukan tidak sah (T-017). */
+    /**
+     * KF-23: hanya RSA + ML-DSA yang "sah hybrid". RSA sah tanpa ML-DSA berstatus sah dengan peringatan
+     * (hybridComplete salah), bukan tidak sah atau tidak dapat dibuktikan (T-017, revisi 27 Nov 2026).
+     */
     @Test
-    void rsaSahTanpaMlDsaTidakMemenuhiKebijakanHybrid() throws Exception {
+    void rsaSahTanpaMlDsaSahDenganPeringatanHybrid() throws Exception {
         LongTermPki pki = LtvFixtures.pki();
         byte[] rsaOnly = new id.pkl.signingpqc.core.PadesSigner().signInvisible(
                 SamplePdf.create("Surat RSA", "Hanya RSA."), pki.signer().rsa(),
                 id.pkl.signingpqc.core.SignatureDetails.of(LtvFixtures.IDENTITY.commonName(), "RSA"),
                 LtvFixtures.tsa(pki.tsaRsaGen1(), T0));
         ValidationReport report = validator().validate(rsaOnly, T0.plus(Duration.ofHours(1)));
-        assertEquals(OverallStatus.TIDAK_DAPAT_DIBUKTIKAN, report.status(), report.toString());
+        assertEquals(OverallStatus.SAH, report.status(), report.toString());
         assertFalse(report.hybridComplete());
         assertTrue(report.warnings().contains(ReasonCode.TANDA_TANGAN_HYBRID_TIDAK_LENGKAP), report.toString());
         assertTrue(report.layers().stream().filter(l -> l.kind() == LayerKind.TANDA_TANGAN)

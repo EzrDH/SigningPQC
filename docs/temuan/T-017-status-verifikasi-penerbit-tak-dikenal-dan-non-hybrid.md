@@ -50,3 +50,18 @@ Uji TC-03 (isi berubah), TC-04 (sertifikat dicabut), dan uji ML-DSA rusak tetap 
 
 ## Tindak lanjut
 - Uji ulang di laptop dengan dokumen sintetis: hasil tanda tangan aplikasi (hijau), PDF bertanda tangan RSA saja dari PKI uji (kuning, "Tidak memenuhi kebijakan hybrid"), dan PDF yang diubah (merah).
+
+## Revisi 27 Nov 2026: RSA saja cukup diberi peringatan
+Setelah mencoba aplikasi, pengguna meminta agar dokumen yang hanya bertanda tangan RSA cukup diberi peringatan, bukan judul kuning.
+
+| Kondisi | 26 Nov | 27 Nov |
+|---|---|---|
+| Semua tanda tangan sah dan penerbit dikenal, tetapi tidak berpasangan RSA dan ML-DSA | Kuning, "Tidak memenuhi kebijakan hybrid" (status `TIDAK_DAPAT_DIBUKTIKAN`) | Hijau "Dokumen sah" (status `SAH`, `hybridComplete` salah), dengan baris peringatan kuning "Peringatan: bukan tanda tangan hybrid. Dokumen tidak memuat tanda tangan ML-DSA yang tahan komputer kuantum." |
+| Penerbit tidak dikenal (misalnya sertifikat asli di luar PKI uji) | Kuning, "Keabsahan tidak dapat dibuktikan" | Tetap, sesuai ETSI EN 319 102-1 |
+
+Status "sah hybrid" tetap hanya dipakai untuk RSA + ML-DSA (`hybridComplete` benar), sesuai KF-23. Peringatan `TANDA_TANGAN_HYBRID_TIDAK_LENGKAP` tetap dikirim backend.
+
+Uji:
+- `DocumentValidatorTest.rsaSahTanpaMlDsaSahDenganPeringatanHybrid` kini mengharapkan `SAH`, dan gagal sebelum perubahan.
+- Di `status.test.ts`, uji "sah dengan peringatan bukan hybrid" dan "dokumen hybrid sah tanpa peringatan" gagal sebelum perubahan.
+- Sesudah perubahan: backend 147/147, frontend 50/50, dan `npm run build` berhasil.

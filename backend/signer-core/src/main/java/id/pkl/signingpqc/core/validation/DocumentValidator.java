@@ -190,15 +190,13 @@ public final class DocumentValidator {
         OverallStatus status;
         if (layers.stream().anyMatch(l -> l.status() == OverallStatus.TIDAK_SAH)) {
             status = OverallStatus.TIDAK_SAH;
-        } else if (!hybridComplete) {
-            // KF-23: "sah hybrid" hanya untuk RSA + ML-DSA. Tanda tangan yang sah tetapi tidak lengkap pasangannya
-            // tidak memenuhi kebijakan hybrid; tidak ada bukti negatif, jadi bukan TIDAK_SAH (T-017).
-            status = OverallStatus.TIDAK_DAPAT_DIBUKTIKAN;
         } else if (layers.stream().anyMatch(l -> l.status() == OverallStatus.TIDAK_DAPAT_DIBUKTIKAN)) {
             status = OverallStatus.TIDAK_DAPAT_DIBUKTIKAN;
         } else {
             status = OverallStatus.SAH;
         }
+        // KF-23: "sah hybrid" hanya untuk RSA + ML-DSA (hybridComplete). Tanda tangan yang sah tanpa pasangannya tetap
+        // sah, dengan peringatan bahwa dokumen tidak memenuhi kebijakan hybrid (T-017, revisi 27 Nov 2026).
         if (!hybridComplete) {
             warnings.add(ReasonCode.TANDA_TANGAN_HYBRID_TIDAK_LENGKAP);
         }

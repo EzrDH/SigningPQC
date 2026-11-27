@@ -31,12 +31,15 @@ function layer(code: string, status: OverallStatus = 'SAH'): LayerReport {
   }
 }
 
-function response(status: OverallStatus | null, opts: { codes?: string[]; warnings?: string[]; renew?: boolean } = {}): VerifyResponse {
+function response(
+  status: OverallStatus | null,
+  opts: { codes?: string[]; warnings?: string[]; renew?: boolean; hybrid?: boolean } = {},
+): VerifyResponse {
   const signed = status !== null
   return {
     fileName: 'surat-ttd.pdf',
     allValid: status === 'SAH',
-    hybridComplete: status === 'SAH',
+    hybridComplete: opts.hybrid ?? status === 'SAH',
     summary: '',
     signatures: signed
       ? [
@@ -57,7 +60,7 @@ function response(status: OverallStatus | null, opts: { codes?: string[]; warnin
     validation: signed
       ? {
           status,
-          hybridComplete: status === 'SAH',
+          hybridComplete: opts.hybrid ?? status === 'SAH',
           validationTime: '2026-11-26T02:00:00Z',
           layers: (opts.codes ?? ['OK']).map((c) => layer(c, c === 'OK' || c === 'DICABUT_SETELAH_DITANDATANGANI' ? 'SAH' : status)),
           protectionUntil: '2028-11-24T03:00:00Z',
@@ -125,12 +128,17 @@ describe('describeResult', () => {
     expect(describeResult(response('SAH', { renew: true })).canRenew).toBe(true)
   })
 
-  it('RSA sah tanpa ML-DSA: kuning, tidak memenuhi kebijakan hybrid (T-017)', () => {
-    const d = describeResult(response('TIDAK_DAPAT_DIBUKTIKAN', { warnings: ['TANDA_TANGAN_HYBRID_TIDAK_LENGKAP'] }))
-    expect(d.tone).toBe('warn')
-    expect(d.title).toBe('Tidak memenuhi kebijakan hybrid')
-    expect(d.subtitle).toBe('Tanda tangan sah, tetapi tidak berpasangan RSA dan ML-DSA')
+  it('RSA sah tanpa ML-DSA: sah dengan peringatan bukan hybrid (T-017 revisi)', () => {
+    const d = describeResult(response('SAH', { warnings: ['TANDA_TANGAN_HYBRID_TIDAK_LENGKAP'], hybrid: false }))
+    expect(d.tone).toBe('ok')
+    expect(d.title).toBe('Dokumen sah')
+    expect(d.subtitle).toBe('Tanda tangan asli, isi tidak berubah')
+    expect(d.warning).toBe('Peringatan: bukan tanda tangan hybrid. Dokumen tidak memuat tanda tangan ML-DSA yang tahan komputer kuantum.')
     expect(d.points).toContainEqual({ text: 'Tanpa tanda tangan tahan komputer kuantum (ML-DSA)', ok: false })
+  })
+
+  it('dokumen hybrid sah tanpa peringatan', () => {
+    expect(describeResult(response('SAH')).warning).toBeNull()
   })
 
   it('penerbit tidak dikenal: kuning dengan alasan yang jelas (T-017)', () => {

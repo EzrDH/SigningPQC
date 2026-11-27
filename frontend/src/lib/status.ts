@@ -41,6 +41,7 @@ const REASON: Record<string, string> = {
 }
 const CHANGE = ['DOKUMEN_BERUBAH', 'PERUBAHAN_SETELAH_LAPISAN_TERAKHIR', 'PERUBAHAN_ISI_TIDAK_DITANDATANGANI']
 const NOT_RENEWABLE = 'TSA_KEDALUWARSA_TANPA_PEMBARUAN'
+const HYBRID = 'TANDA_TANGAN_HYBRID_TIDAK_LENGKAP'
 
 export function reasonText(code: string): string {
   return REASON[code] ?? code
@@ -59,6 +60,8 @@ export interface ResultDescription {
   until: string | null
   canRenew: boolean
   renewMessage: string | null
+  /** Peringatan kuning di bawah judul, misalnya dokumen sah tetapi bukan hybrid (T-017). */
+  warning: string | null
 }
 
 const WIB = 'Asia/Jakarta'
@@ -92,6 +95,7 @@ export function describeResult(res: VerifyResponse): ResultDescription {
       until: null,
       canRenew: false,
       renewMessage: null,
+      warning: null,
     }
   }
   const codes = [...new Set([...v.layers.map((l) => l.code), ...v.warnings].filter((c) => c && c !== 'OK'))]
@@ -112,12 +116,8 @@ export function describeResult(res: VerifyResponse): ResultDescription {
   if (v.status === 'SAH') {
     tone = 'ok'
     title = 'Dokumen sah'
-    subtitle = codes.length ? codes.map(reasonText).join('. ') : 'Tanda tangan asli, isi tidak berubah'
-  } else if (v.status === 'TIDAK_DAPAT_DIBUKTIKAN' && !v.hybridComplete && v.layers.every((l) => l.status === 'SAH')) {
-    // KF-23: setiap tanda tangan sah, tetapi tidak berpasangan RSA dan ML-DSA (T-017).
-    tone = 'warn'
-    title = 'Tidak memenuhi kebijakan hybrid'
-    subtitle = 'Tanda tangan sah, tetapi tidak berpasangan RSA dan ML-DSA'
+    const notes = codes.filter((c) => c !== HYBRID)
+    subtitle = notes.length ? notes.map(reasonText).join('. ') : 'Tanda tangan asli, isi tidak berubah'
   } else if (v.status === 'TIDAK_DAPAT_DIBUKTIKAN') {
     tone = 'warn'
     title = 'Keabsahan tidak dapat dibuktikan'
@@ -147,5 +147,9 @@ export function describeResult(res: VerifyResponse): ResultDescription {
     until: v.status === 'SAH' && v.protectionUntil ? formatDate(v.protectionUntil) : null,
     canRenew: v.renewalRecommended,
     renewMessage: codes.includes(NOT_RENEWABLE) ? 'Masa keabsahan sudah berakhir dan tidak bisa diperpanjang lagi.' : null,
+    warning:
+      v.status === 'SAH' && !v.hybridComplete
+        ? 'Peringatan: bukan tanda tangan hybrid. Dokumen tidak memuat tanda tangan ML-DSA yang tahan komputer kuantum.'
+        : null,
   }
 }

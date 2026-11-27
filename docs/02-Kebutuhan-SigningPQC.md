@@ -47,7 +47,7 @@ Cara membaca: setiap kebutuhan punya kode, prioritas (W = wajib, S = sebaiknya, 
 | KF-20 | Aplikasi memverifikasi keutuhan (ByteRange dan hash) setiap tanda tangan | W | 2 |
 | KF-21 | Aplikasi memverifikasi tanda tangan RSA dan ML-DSA serta rantai sertifikatnya | W | 2 |
 | KF-22 | Aplikasi memverifikasi signature timestamp dan document timestamp | W | 3 |
-| KF-23 | Aplikasi menampilkan status gabungan: sah hybrid hanya jika RSA dan ML-DSA keduanya sah. Tanda tangan yang sah tetapi tidak berpasangan RSA dan ML-DSA ditampilkan "tidak memenuhi kebijakan hybrid" (kuning), bukan tidak sah. Penerbit yang tidak dikenal ditampilkan "tidak dapat dibuktikan" sesuai ETSI EN 319 102-1 (revisi 26 Nov 2026, T-017) | W | 2 |
+| KF-23 | Aplikasi menampilkan status gabungan: sah hybrid hanya jika RSA dan ML-DSA keduanya sah. Tanda tangan yang sah tetapi tidak berpasangan RSA dan ML-DSA ditampilkan sah dengan peringatan "bukan tanda tangan hybrid", bukan tidak sah. Penerbit yang tidak dikenal ditampilkan "tidak dapat dibuktikan" sesuai ETSI EN 319 102-1 (revisi 26 dan 27 Nov 2026, T-017) | W | 2 |
 | KF-24 | Aplikasi menampilkan alasan kegagalan yang mudah dipahami beserta kodenya | W | 2 |
 | KF-25 | Laporan verifikasi dapat diekspor | S | 5 |
 

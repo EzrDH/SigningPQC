@@ -18,6 +18,7 @@ const icon = computed(() => (d.value.tone === 'ok' ? 'check' : d.value.tone === 
       <p>{{ d.subtitle }}</p>
     </div>
   </div>
+  <p v-if="d.warning" class="warnline" role="note">{{ d.warning }}</p>
   <ul v-if="d.points.length" class="facts">
     <li v-for="p in d.points" :key="p.text">
       <AppIcon :name="p.ok ? 'check' : 'x'" :style="p.ok ? undefined : { color: 'var(--bad)' }" />
