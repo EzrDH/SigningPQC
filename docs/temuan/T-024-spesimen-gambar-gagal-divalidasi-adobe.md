@@ -8,7 +8,7 @@
 | Kebutuhan terkait | KF-12 (tanda tangan visible), TC-05 |
 | Lingkungan | Windows 11, Adobe Acrobat Reader (versi terbaru per 27 Nov 2026); container Linux, Temurin 25.0.1, PDFBox 3.0.8, pyHanko 0.38.2 |
 | Versi kode | ditemukan pada 7d8d75b, diperbaiki pada commit sesudahnya (cabang `sprint3-halaman-pki-log`) |
-| Status | Diperbaiki di kode, menunggu konfirmasi Adobe |
+| Status | Diperbaiki, dikonfirmasi di Adobe Reader |
 
 ## Ringkasan
 Saat memeriksa ulang keluaran T-016 di Adobe Reader, tanda tangan RSA (Rev. 1) yang memakai spesimen gambar
@@ -67,8 +67,25 @@ Uji baru `VisibleSignatureTest.spesimenGambarDibungkusFormDalamAgarTerbacaAdobe`
 (signer-core 7, pki-test 74, app-server 79). Tiga PDF uji baru (E transparan, F opak, G halaman lanskap
 ber-/Rotate) dinilai SAH oleh pyHanko dengan root uji sebagai jangkar.
 
+### Konfirmasi Adobe sesudah perbaikan (27 Nov 2026, 22.14 WIB)
+
+| Berkas | Spesimen | Rev. 1 (RSA) di Adobe |
+|---|---|---|
+| E | gambar transparan | "Document has not been modified since this signature was applied", identitas belum dipercaya |
+| F | gambar opak | sama dengan E |
+| G | gambar transparan, halaman ber-/Rotate 90 | sama dengan E; spesimen tampil tegak di kanan bawah halaman lanskap |
+
+Tangkapan layar: `img/T-024-adobe-e-perbaikan-spesimen-transparan.png`,
+`img/T-024-adobe-f-perbaikan-spesimen-opak.png`, `img/T-024-adobe-g-perbaikan-halaman-lanskap.png`.
+
+Galat "An error occurred while attempting to validate this signature" hilang pada ketiga berkas, jadi perbaikan
+bekerja. Status "validity is unknown" dan "embedded timestamp ... could not be verified" muncul karena root uji
+belum diimpor sebagai tepercaya di Adobe, bukan karena tanda tangannya. Rev. 2 (ML-DSA) tetap "invalid" sesuai
+T-011. Berkas G sekaligus menutup uji visual halaman berotasi yang tertunda di T-014.
+
 ## Tindak lanjut
-- Konfirmasi E, F, G di Adobe Reader (Sprint 3). Untuk membaca status identitas dan LTV, impor
+- Selesai: konfirmasi E, F, G di Adobe Reader.
+- Untuk membaca status identitas dan LTV, impor
   `Root-CA-Uji-RSA.crt` sebagai root tepercaya di Adobe (Preferences, Signatures, Identities & Trusted
   Certificates).
-- Bila Adobe masih gagal, uji varian dengan hanya salah satu perubahan untuk memisahkan penyebabnya.
+- Tidak dipisahkan mana dari dua perubahan yang menentukan; keduanya dipertahankan karena sama-sama bentuk yang dipakai Acrobat.
