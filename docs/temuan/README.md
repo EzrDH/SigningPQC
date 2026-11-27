@@ -36,6 +36,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-021 | 27 Nov 2026 | Pengujian dan temuan kompatibilitas | TC-05: B-LT dan B-LTA dari aplikasi sah di validator aplikasi dan pyHanko tanpa CRL daring; pyHanko menerima ML-DSA-65 | Lulus (Adobe menyusul) |
 | T-022 | 27 Nov 2026 | Temuan keamanan dependensi | Lima kerentanan moderate `npm audit` (glob, minimatch lewat @vue/test-utils, khusus pengembangan) diatasi dengan overrides | Diperbaiki |
 | T-023 | 27 Nov 2026 | Temuan keamanan | Folder keluaran diperiksa ulang saat menyimpan: tautan simbolik atau junction ke folder data yang dibuat sesudah Pengaturan disimpan kini ditolak 409 sebelum kunci dibuka | Diperbaiki |
+| T-024 | 27 Nov 2026 | Temuan kompatibilitas | Tanda tangan RSA dengan spesimen gambar gagal divalidasi Adobe Reader ("An error occurred ..."); gambar kini dibungkus form XObject dalam dan /DecodeParms ditulis langsung | Diperbaiki (konfirmasi Adobe menyusul) |
 
 ## Templat
 

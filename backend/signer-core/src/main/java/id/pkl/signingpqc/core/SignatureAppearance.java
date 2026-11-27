@@ -11,6 +11,10 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
+import org.apache.pdfbox.cos.COSBase;
+import org.apache.pdfbox.cos.COSDictionary;
+import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.cos.COSStream;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -134,8 +138,7 @@ final class SignatureAppearance {
             try (PDPageContentStream content = new PDPageContentStream(template, stream)) {
                 byte[] specimen = visible.specimenPng();
                 if (specimen != null) {
-                    drawSpecimen(content, PDImageXObject.createFromByteArray(template, specimen, "spesimen"), width,
-                            height);
+                    content.drawForm(specimenForm(template, specimen, width, height));
                 } else {
                     draw(content, width, height, lines);
                 }
@@ -143,6 +146,37 @@ final class SignatureAppearance {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             template.save(out);
             return new ByteArrayInputStream(out.toByteArray());
+        }
+    }
+
+    /**
+     * Form XObject dalam yang berisi gambar spesimen. Adobe Reader gagal memvalidasi tanda tangan ("An error occurred
+     * while attempting to validate this signature") bila /Resources /XObject appearance langsung menunjuk gambar,
+     * jadi gambar dibungkus form tersendiri dan appearance hanya memanggil form itu (T-024). /DecodeParms gambar
+     * juga ditulis langsung di kamus gambar, bukan sebagai objek terpisah.
+     */
+    private static PDFormXObject specimenForm(PDDocument template, byte[] specimen, float width, float height)
+            throws IOException {
+        PDImageXObject image = PDImageXObject.createFromByteArray(template, specimen, "spesimen");
+        directDecodeParms(image.getCOSObject());
+        COSBase mask = image.getCOSObject().getDictionaryObject(COSName.SMASK);
+        if (mask instanceof COSStream maskStream) {
+            directDecodeParms(maskStream);
+        }
+        PDFormXObject form = new PDFormXObject(new PDStream(template));
+        form.setResources(new PDResources());
+        form.setFormType(1);
+        form.setBBox(new PDRectangle(width, height));
+        try (PDPageContentStream content = new PDPageContentStream(template, new PDAppearanceStream(form.getCOSObject()))) {
+            drawSpecimen(content, image, width, height);
+        }
+        return form;
+    }
+
+    private static void directDecodeParms(COSStream stream) {
+        if (stream.getDictionaryObject(COSName.DECODE_PARMS) instanceof COSDictionary parms) {
+            parms.setDirect(true);
+            stream.setItem(COSName.DECODE_PARMS, parms);
         }
     }
 

@@ -160,6 +160,47 @@ class VisibleSignatureTest {
         }
     }
 
+    /**
+     * T-024: Adobe Reader gagal memvalidasi tanda tangan bila /Resources /XObject appearance langsung menunjuk gambar.
+     * Gambar harus berada di form XObject dalam, dan /DecodeParms gambar ditulis langsung (bukan referensi).
+     */
+    @Test
+    void spesimenGambarDibungkusFormDalamAgarTerbacaAdobe() throws Exception {
+        BufferedImage specimen = new BufferedImage(400, 160, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D g = specimen.createGraphics();
+        g.setColor(java.awt.Color.BLUE);
+        g.drawLine(10, 80, 390, 40);
+        g.dispose();
+        java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+        ImageIO.write(specimen, "png", png);
+
+        byte[] pdf = SamplePdf.create("Surat Uji Spesimen", "Spesimen gambar.");
+        VisibleSignature box = new VisibleSignature(0, 300, 600, 180, 75, List.of(), png.toByteArray());
+        byte[] out = new PadesSigner().signVisible(pdf, pair.rsa(), SignatureDetails.of(IDENTITY.commonName(), "Uji"),
+                box, null);
+        try (PDDocument document = Loader.loadPDF(out)) {
+            PDFormXObject appearance = new PDFormXObject(firstWidget(document).getAppearance().getNormalAppearance()
+                    .getAppearanceStream().getCOSObject());
+            PDResources resources = appearance.getResources();
+            int forms = 0;
+            for (COSName name : resources.getXObjectNames()) {
+                PDXObject x = resources.getXObject(name);
+                assertTrue(x instanceof PDFormXObject, "appearance tidak boleh langsung menunjuk gambar: " + name);
+                forms++;
+                PDResources inner = ((PDFormXObject) x).getResources();
+                for (COSName innerName : inner.getXObjectNames()) {
+                    if (inner.getXObject(innerName) instanceof PDImageXObject image) {
+                        org.apache.pdfbox.cos.COSBase parms = image.getCOSObject()
+                                .getItem(COSName.DECODE_PARMS);
+                        assertTrue(parms == null || parms instanceof org.apache.pdfbox.cos.COSDictionary,
+                                "/DecodeParms harus langsung, bukan referensi: " + parms);
+                    }
+                }
+            }
+            assertEquals(1, forms);
+        }
+    }
+
     @Test
     void spesimenBukanGambarDitolak() throws Exception {
         byte[] pdf = SamplePdf.create("Surat Uji", "Spesimen salah.");
