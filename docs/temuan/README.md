@@ -34,6 +34,7 @@ Setiap temuan (perilaku aplikasi lain, bug, keterbatasan pustaka) dan setiap has
 | T-019 | 27 Nov 2026 | Temuan | Bukti pada detail verifikasi: OID algoritma dan kebijakan, sidik jari SHA-256, CRL beserta sumbernya, jangkar kepercayaan, revisi yang ditutup tiap tanda tangan, dan tab "Lapisan dokumen" (DSS dan document timestamp) | Diperbaiki |
 | T-020 | 27 Nov 2026 | Pengujian | Halaman Lingkungan uji (CA, TSA, penanda tangan, cabut) dan log aktivitas lokal perangkat (siapa, kapan, berkas, hasil) | Lulus |
 | T-021 | 27 Nov 2026 | Pengujian dan temuan kompatibilitas | TC-05: B-LT dan B-LTA dari aplikasi sah di validator aplikasi dan pyHanko tanpa CRL daring; pyHanko menerima ML-DSA-65 | Lulus (Adobe menyusul) |
+| T-022 | 27 Nov 2026 | Temuan keamanan dependensi | Lima kerentanan moderate `npm audit` (glob, minimatch lewat @vue/test-utils, khusus pengembangan) diatasi dengan overrides | Diperbaiki |
 
 ## Templat
 
